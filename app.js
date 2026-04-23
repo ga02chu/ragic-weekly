@@ -1238,22 +1238,29 @@ async function renderAchievement(byStore, dateFrom, dateTo) {
     const totalDays = new Date(today.getFullYear(), month, 0).getDate();
     const elapsedDays = Math.min(Math.ceil((toDate - fromDate) / 86400000) + 1, totalDays);
 
+    // Calculate elapsed days properly (days with data so far this month)
+    const today = new Date();
+    const todayDay = today.getDate();
+    const isCurrentMonth = (today.getFullYear() === new Date(dateFrom).getFullYear() &&
+                            today.getMonth() === new Date(dateFrom).getMonth());
+    const effectiveElapsed = isCurrentMonth ? todayDay : totalDays;
+
     const rows = Object.entries(targets).map(([sheetName, target]) => {
       const ragicName = STORE_NAME_MAP[sheetName] || sheetName;
-      // Match by ragic store key or displayName
       const storeEntry = Object.entries(byStore).find(([k, v]) =>
         k === ragicName || v.displayName === ragicName ||
-        k.includes(sheetName) || v.displayName.includes(sheetName) ||
-        sheetName.includes(k.replace(/\d號店\(|\)/g,''))
+        k.includes(sheetName) || v.displayName.includes(sheetName)
       );
       const actual = storeEntry ? storeEntry[1].rev : 0;
       const pct = target > 0 ? (actual / target * 100) : 0;
-      const projected = elapsedDays > 0 ? (actual / elapsedDays * totalDays) : 0;
+      // Project: daily average × remaining days
+      const projected = effectiveElapsed > 0 ? Math.round(actual / effectiveElapsed * totalDays) : 0;
       const projPct = target > 0 ? (projected / target * 100) : 0;
       const color = pct >= 100 ? '#0F6E56' : pct >= 80 ? '#BA7517' : '#A32D2D';
       const barColor = pct >= 100 ? '#1D9E75' : pct >= 80 ? '#EF9F27' : BRAND;
+      const gap = actual - target;
 
-      return { sheetName, target, actual, pct, projected, projPct, color, barColor };
+      return { sheetName, target, actual, pct, projected, projPct, color, barColor, gap };
     });
 
     el.innerHTML = `
@@ -1261,28 +1268,25 @@ async function renderAchievement(byStore, dateFrom, dateTo) {
         ${rows.map(r => `
           <div class="ach-card">
             <div class="ach-store">${r.sheetName}</div>
-            <div class="ach-nums">
-              <div>
-                <div class="ach-label">實際營業額</div>
-                <div class="ach-val">$${fmt(r.actual)}</div>
-              </div>
-              <div>
-                <div class="ach-label">月目標</div>
-                <div class="ach-val" style="color:#9ca3af">$${fmt(r.target)}</div>
-              </div>
-              <div>
-                <div class="ach-label">預估月底</div>
-                <div class="ach-val" style="color:${r.projPct>=100?'#0F6E56':'#BA7517'}">$${fmt(r.projected)}</div>
-              </div>
+            <div class="ach-row-item">
+              <span class="ach-label">實際營業額</span>
+              <span class="ach-val">$${fmt(r.actual)}</span>
             </div>
-            <div class="ach-bar-wrap">
+            <div class="ach-row-item">
+              <span class="ach-label">月目標</span>
+              <span class="ach-val" style="color:#9ca3af">$${fmt(r.target)}</span>
+            </div>
+            <div class="ach-row-item">
+              <span class="ach-label">預估月底</span>
+              <span class="ach-val" style="color:${r.projPct>=100?'#0F6E56':'#BA7517'}">$${fmt(r.projected)}</span>
+            </div>
+            <div class="ach-bar-wrap" style="margin-top:10px;">
               <div class="ach-bar-track">
                 <div class="ach-bar-fill" style="width:${Math.min(r.pct,100).toFixed(1)}%;background:${r.barColor}"></div>
-                ${r.pct > 100 ? `<div class="ach-bar-over"></div>` : ''}
               </div>
               <span class="ach-pct" style="color:${r.color}">${r.pct.toFixed(1)}%</span>
             </div>
-            <div class="ach-sub">預估達成率 ${r.projPct.toFixed(1)}%・差距 ${r.actual < r.target ? '▼' : '▲'} $${fmt(Math.abs(r.actual - r.target))}</div>
+            <div class="ach-sub">${r.gap >= 0 ? '▲ 超標' : '▼ 差距'} $${fmt(Math.abs(r.gap))}・預估達成 ${r.projPct.toFixed(1)}%</div>
           </div>
         `).join('')}
       </div>
