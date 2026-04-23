@@ -108,10 +108,10 @@ function getRange(key) {
     to = new Date(from); to.setDate(from.getDate() + 6);
   } else if (key === 'thismonth') {
     from = new Date(t.getFullYear(), t.getMonth(), 1);
-    to   = new Date(t.getFullYear(), t.getMonth() + 1, 0);
+    to   = new Date(t.getFullYear(), t.getMonth() + 1, 0); // last day of current month
   } else if (key === 'lastmonth') {
     from = new Date(t.getFullYear(), t.getMonth() - 1, 1);
-    to   = new Date(t.getFullYear(), t.getMonth(), 0);
+    to   = new Date(t.getFullYear(), t.getMonth(), 0); // last day of last month
   }
   return { from: toISO(from), to: toISO(to) };
 }
@@ -651,8 +651,12 @@ function switchSection(key) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.getElementById('section-' + key).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.section === key));
-  const titles = { dashboard:'總覽', stores:'分店比較', logs:'主管日誌', settings:'設定' };
+  const titles = { dashboard:'總覽', stores:'分店比較', logs:'主管日誌', yoy:'年度比較', settings:'設定' };
   document.getElementById('pageTitle').textContent = titles[key] || '';
+  // Show/hide topbars
+  const isYoy = key === 'yoy';
+  document.getElementById('mainTopbarRight').style.display = isYoy ? 'none' : 'flex';
+  document.getElementById('yoyTopbarRight').style.display  = isYoy ? 'flex' : 'none';
 }
 
 /* ── Init ── */
@@ -662,6 +666,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateConnStatus();
   applyRange('thisweek');
   switchSection('dashboard');
+  initYoyControls();
 
   document.querySelectorAll('.quick-btn').forEach(btn => {
     btn.addEventListener('click', () => applyRange(btn.dataset.range));
@@ -669,10 +674,223 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.nav-item').forEach(btn => {
     btn.addEventListener('click', () => switchSection(btn.dataset.section));
   });
-  document.querySelectorAll('.filter-btn').forEach(btn => {
+  document.querySelectorAll('.filter-btn[data-filter]').forEach(btn => {
     btn.addEventListener('click', () => setStoreFilter(btn.dataset.filter));
   });
   document.getElementById('fetchBtn').addEventListener('click', fetchData);
   document.getElementById('dateFrom').addEventListener('change', () => applyRange('custom'));
   document.getElementById('dateTo').addEventListener('change',   () => applyRange('custom'));
 });
+
+/* ════════════════════════════════════════
+   年度同期比較 (YoY)
+════════════════════════════════════════ */
+const yoyState = { filter: 'all', charts: [] };
+
+function initYoyControls() {
+  const yearSel = document.getElementById('yoyYear');
+  const now = new Date();
+  for (let y = now.getFullYear(); y >= now.getFullYear() - 3; y--) {
+    const opt = document.createElement('option');
+    opt.value = y; opt.textContent = y + '年';
+    yearSel.appendChild(opt);
+  }
+  document.getElementById('yoyMonth').value = now.getMonth() + 1;
+
+  document.querySelectorAll('[data-yoy-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      yoyState.filter = btn.dataset.yoyFilter;
+      document.querySelectorAll('[data-yoy-filter]').forEach(b => b.classList.toggle('active', b.dataset.yoyFilter === yoyState.filter));
+      if (yoyState.lastData) renderYoy(yoyState.lastData.curr, yoyState.lastData.prev, yoyState.lastData.currYear, yoyState.lastData.prevYear, yoyState.lastData.month);
+    });
+  });
+  document.getElementById('yoyFetchBtn').addEventListener('click', fetchYoy);
+}
+
+async function fetchYoy() {
+  const token = state.settings.token || '';
+  const path  = state.settings.path  || '';
+  const year  = parseInt(document.getElementById('yoyYear').value);
+  const month = parseInt(document.getElementById('yoyMonth').value);
+
+  const btn = document.getElementById('yoyFetchBtn');
+  btn.disabled = true; btn.textContent = '查詢中…';
+  document.getElementById('yoyContent').innerHTML = '<div class="loading-state" style="padding:3rem;text-align:center;color:#6b7280">載入中...</div>';
+
+  const pad = n => String(n).padStart(2,'0');
+  const lastDay = new Date(year, month, 0).getDate();
+  const currFrom = `${year}-${pad(month)}-01`;
+  const currTo   = `${year}-${pad(month)}-${pad(lastDay)}`;
+  const prevLastDay = new Date(year-1, month, 0).getDate();
+  const prevFrom = `${year-1}-${pad(month)}-01`;
+  const prevTo   = `${year-1}-${pad(month)}-${pad(prevLastDay)}`;
+
+  try {
+    const [curr, prev] = await Promise.all([
+      fetchRange(token, path, currFrom, currTo),
+      fetchRange(token, path, prevFrom, prevTo),
+    ]);
+    yoyState.lastData = { curr, prev, currYear: year, prevYear: year-1, month };
+    renderYoy(curr, prev, year, year-1, month);
+    showToast(`已載入 ${year}年 vs ${year-1}年 ${month}月資料`);
+  } catch(e) {
+    showToast('載入失敗：' + e.message);
+    document.getElementById('yoyContent').innerHTML = '<div class="empty-state"><p class="empty-title">載入失敗</p></div>';
+  } finally {
+    btn.disabled = false; btn.textContent = '載入比較';
+  }
+}
+
+function filterYoyStores(byStore) {
+  if (yoyState.filter === 'all') return byStore;
+  return Object.fromEntries(Object.entries(byStore).filter(([,v]) =>
+    yoyState.filter === 'direct' ? v.type === 'direct' : v.type === 'franchise'
+  ));
+}
+
+function renderYoy(currRecords, prevRecords, currYear, prevYear, month) {
+  const curr = filterYoyStores(processRecords(currRecords).byStore);
+  const prev = filterYoyStores(processRecords(prevRecords).byStore);
+  yoyState.charts.forEach(c => c.destroy()); yoyState.charts = [];
+
+  const allStores = Array.from(new Set([...Object.keys(curr), ...Object.keys(prev)])).sort();
+  const monthName = `${month}月`;
+
+  // Summary KPIs
+  const cRev    = Object.values(curr).reduce((s,v) => s+v.rev, 0);
+  const pRev    = Object.values(prev).reduce((s,v) => s+v.rev, 0);
+  const cGuests = Object.values(curr).reduce((s,v) => s+v.guests, 0);
+  const pGuests = Object.values(prev).reduce((s,v) => s+v.guests, 0);
+  const cAvgPays = Object.values(curr).flatMap(v => v.avgPays);
+  const pAvgPays = Object.values(prev).flatMap(v => v.avgPays);
+  const cAvg = cAvgPays.length ? cAvgPays.reduce((a,b)=>a+b,0)/cAvgPays.length : 0;
+  const pAvg = pAvgPays.length ? pAvgPays.reduce((a,b)=>a+b,0)/pAvgPays.length : 0;
+
+  document.getElementById('yoyContent').innerHTML = `
+    <div class="yoy-header">
+      <span class="yoy-badge yoy-curr">${currYear}年${monthName}</span>
+      <span style="color:#9ca3af;font-size:13px;">vs</span>
+      <span class="yoy-badge yoy-prev">${prevYear}年${monthName}</span>
+    </div>
+
+    <div class="metrics-grid" style="margin-bottom:20px;">
+      <div class="metric-card highlight">
+        <div class="m-label">月總營業額</div>
+        <div class="m-value">$${fmt(cRev)} ${diffBadge(cRev,pRev)}</div>
+        <div class="m-sub">去年同期 $${fmt(pRev)}</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">總用餐人數</div>
+        <div class="m-value">${fmt(cGuests)} ${diffBadge(cGuests,pGuests)}</div>
+        <div class="m-sub">去年同期 ${fmt(pGuests)}</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">平均客單價</div>
+        <div class="m-value">$${fmt(cAvg)} ${diffBadge(cAvg,pAvg)}</div>
+        <div class="m-sub">去年同期 $${fmt(pAvg)}</div>
+      </div>
+    </div>
+
+    <div class="charts-row" style="margin-bottom:20px;">
+      <div class="chart-card">
+        <div class="c-title">各分店營業額對比</div>
+        <div class="chart-wrap" style="height:${Math.max(200, allStores.length*50)}px;">
+          <canvas id="yoyBarChart" role="img" aria-label="各分店年度對比長條圖">年度對比</canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="c-title">各分店客單價對比</div>
+        <div class="chart-wrap" style="height:${Math.max(200, allStores.length*50)}px;">
+          <canvas id="yoyAvgChart" role="img" aria-label="各分店客單價對比">客單價對比</canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header"><h3>各分店同期詳細比較</h3></div>
+      <table>
+        <thead><tr>
+          <th style="width:16%">分店</th>
+          <th style="width:7%">類型</th>
+          <th style="width:14%">${currYear}年營業額</th>
+          <th style="width:14%">${prevYear}年營業額</th>
+          <th style="width:10%">營業額漲跌</th>
+          <th style="width:11%">${currYear}年來客</th>
+          <th style="width:11%">${prevYear}年來客</th>
+          <th style="width:10%">${currYear}年客單價</th>
+          <th style="width:7%">狀態</th>
+        </tr></thead>
+        <tbody>
+          ${allStores.map(s => {
+            const c = curr[s], p = prev[s];
+            const displayName = c?.displayName || p?.displayName || s;
+            const type = c?.type || p?.type || 'direct';
+            const cR = c?.rev||0, pR = p?.rev||0;
+            const cG = c?.guests||0, pG = p?.guests||0;
+            const cAp = c?.avgPays||[], pAp = p?.avgPays||[];
+            const cAv = cAp.length ? cAp.reduce((a,b)=>a+b,0)/cAp.length : 0;
+            const revChg = pR > 0 ? ((cR-pR)/pR*100) : null;
+            const badge = revChg === null ? '<span class="badge" style="background:#F3F4F6;color:#6b7280">-</span>'
+              : revChg >= 5  ? '<span class="badge badge-good">成長</span>'
+              : revChg <= -5 ? '<span class="badge badge-danger">衰退</span>'
+              : '<span class="badge badge-warn">持平</span>';
+            const typeBadge = type === 'franchise'
+              ? '<span class="badge" style="background:#EDE9FE;color:#5B21B6">加盟</span>'
+              : `<span class="badge" style="background:${BRAND_LIGHT};color:${BRAND}">直營</span>`;
+            return `<tr>
+              <td class="store-name-cell">${displayName}</td>
+              <td>${typeBadge}</td>
+              <td>$${fmt(cR)}</td>
+              <td style="color:#9ca3af">$${fmt(pR)}</td>
+              <td>${diffBadge(cR,pR)} ${revChg!==null?revChg.toFixed(1)+'%':'-'}</td>
+              <td>${fmt(cG)}</td>
+              <td style="color:#9ca3af">${fmt(pG)}</td>
+              <td>$${fmt(cAv)}</td>
+              <td>${badge}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  const labels = allStores.map(s => (curr[s]||prev[s]).displayName);
+
+  yoyState.charts.push(new Chart(document.getElementById('yoyBarChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: `${currYear}年`, data: allStores.map(s => curr[s]?.rev||0), backgroundColor: BRAND, borderRadius: 4 },
+        { label: `${prevYear}年`, data: allStores.map(s => prev[s]?.rev||0), backgroundColor: '#d4b8b8', borderRadius: 4 },
+      ]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
+      scales: {
+        x: { ticks: { callback: v => '$'+fmt(v), font: { size: 10 } } },
+        y: { ticks: { font: { size: 11 } } }
+      }
+    }
+  }));
+
+  yoyState.charts.push(new Chart(document.getElementById('yoyAvgChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: `${currYear}年客單價`, data: allStores.map(s => { const ap=curr[s]?.avgPays||[]; return ap.length?ap.reduce((a,b)=>a+b,0)/ap.length:0; }), backgroundColor: BRAND, borderRadius: 4 },
+        { label: `${prevYear}年客單價`, data: allStores.map(s => { const ap=prev[s]?.avgPays||[]; return ap.length?ap.reduce((a,b)=>a+b,0)/ap.length:0; }), backgroundColor: '#d4b8b8', borderRadius: 4 },
+      ]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
+      scales: {
+        x: { ticks: { callback: v => '$'+fmt(v), font: { size: 10 } } },
+        y: { ticks: { font: { size: 11 } } }
+      }
+    }
+  }));
+}
