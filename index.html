@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>分店週報儀表板</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="28" height="28" rx="8" fill="#1D9E75"/>
+          <rect x="6" y="10" width="16" height="2.5" rx="1.25" fill="white"/>
+          <rect x="6" y="15.5" width="10" height="2.5" rx="1.25" fill="white"/>
+        </svg>
+        <span class="logo-text">週報系統</span>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-section="dashboard">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/></svg>
+          總覽
+        </button>
+        <button class="nav-item" data-section="stores">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 6l6-4 6 4v8H2V6z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6 14V9h4v5" stroke="currentColor" stroke-width="1.5"/></svg>
+          分店比較
+        </button>
+        <button class="nav-item" data-section="logs">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M5 6h6M5 9h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          主管日誌
+        </button>
+        <button class="nav-item" data-section="settings">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          設定
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="connection-status" id="connStatus">
+          <span class="dot dot-gray"></span>
+          <span>尚未連線</span>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h1 class="page-title" id="pageTitle">總覽</h1>
+          <span class="date-range-label" id="dateRangeLabel"></span>
+        </div>
+        <div class="topbar-right">
+          <div class="quick-btns">
+            <button class="quick-btn active" data-range="thisweek">本週</button>
+            <button class="quick-btn" data-range="lastweek">上週</button>
+            <button class="quick-btn" data-range="thismonth">本月</button>
+            <button class="quick-btn" data-range="lastmonth">上個月</button>
+            <button class="quick-btn" data-range="custom">自訂</button>
+          </div>
+          <div class="date-inputs" id="dateInputs" style="display:none;">
+            <input type="date" id="dateFrom" />
+            <span class="date-sep">—</span>
+            <input type="date" id="dateTo" />
+          </div>
+          <button class="btn-fetch" id="fetchBtn">載入報表</button>
+        </div>
+      </header>
+
+      <div class="content" id="content">
+        <!-- Dashboard Section -->
+        <section class="section active" id="section-dashboard">
+          <div id="dashboardContent">
+            <div class="empty-state">
+              <div class="empty-icon">
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="4" y="8" width="32" height="24" rx="4" stroke="#C0D8CF" stroke-width="2"/><path d="M12 20h16M12 26h10" stroke="#C0D8CF" stroke-width="2" stroke-linecap="round"/><path d="M4 14h32" stroke="#C0D8CF" stroke-width="2"/></svg>
+              </div>
+              <p class="empty-title">尚無資料</p>
+              <p class="empty-sub">請先在設定頁面填入 API Token，<br>再選擇日期區間後點擊「載入報表」</p>
+              <button class="btn-secondary" onclick="switchSection('settings')">前往設定</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Stores Section -->
+        <section class="section" id="section-stores">
+          <div id="storesContent">
+            <div class="empty-state"><p class="empty-title">請先載入報表</p></div>
+          </div>
+        </section>
+
+        <!-- Logs Section -->
+        <section class="section" id="section-logs">
+          <div id="logsContent">
+            <div class="empty-state"><p class="empty-title">請先載入報表</p></div>
+          </div>
+        </section>
+
+        <!-- Settings Section -->
+        <section class="section" id="section-settings">
+          <div class="settings-card">
+            <h2 class="settings-title">API 設定</h2>
+            <p class="settings-desc">設定 Ragic 連線資訊，資料只儲存在你的瀏覽器中。</p>
+            <div class="form-group">
+              <label>Ragic API Token</label>
+              <input type="password" id="settingsToken" class="settings-input mono" placeholder="貼上 Base64 API Token..." />
+              <button class="btn-show-token" id="toggleTokenBtn" onclick="toggleToken()">顯示</button>
+            </div>
+            <div class="form-group">
+              <label>Ragic 表單路徑</label>
+              <input type="text" id="settingsPath" class="settings-input" placeholder="yourcompany/formname/1" />
+              <p class="field-hint">例：yohannam/ragicsales-order-management/11</p>
+            </div>
+            <div class="form-group">
+              <label>Ragic API 伺服器</label>
+              <select id="settingsServer" class="settings-input">
+                <option value="ap7">ap7.ragic.com（預設）</option>
+                <option value="ap12">ap12.ragic.com</option>
+                <option value="www">www.ragic.com</option>
+              </select>
+            </div>
+            <div class="settings-actions">
+              <button class="btn-save" onclick="saveSettings()">儲存設定</button>
+              <span class="save-feedback" id="saveFeedback"></span>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <h2 class="settings-title">欄位對應</h2>
+            <p class="settings-desc">設定 Ragic 表單欄位名稱（依照你的表單調整）</p>
+            <div class="fields-grid">
+              <div class="form-group"><label>營業日期欄位</label><input type="text" id="fDate" class="settings-input" placeholder="營業日期" /></div>
+              <div class="form-group"><label>分店名稱欄位</label><input type="text" id="fStore" class="settings-input" placeholder="分店簡稱" /></div>
+              <div class="form-group"><label>當日營業額欄位</label><input type="text" id="fRev" class="settings-input" placeholder="當日營業額" /></div>
+              <div class="form-group"><label>用餐人數欄位</label><input type="text" id="fGuests" class="settings-input" placeholder="用餐人數" /></div>
+              <div class="form-group"><label>用餐組數欄位</label><input type="text" id="fGroups" class="settings-input" placeholder="用餐組數" /></div>
+              <div class="form-group"><label>No Show 組數欄位</label><input type="text" id="fNoshow" class="settings-input" placeholder="No Show組數" /></div>
+              <div class="form-group"><label>客單價欄位</label><input type="text" id="fAvgPay" class="settings-input" placeholder="客單價" /></div>
+              <div class="form-group"><label>值班人員欄位</label><input type="text" id="fSupervisor" class="settings-input" placeholder="值班人員" /></div>
+              <div class="form-group"><label>交接事項欄位</label><input type="text" id="fHandover" class="settings-input" placeholder="佈達/交接事項" /></div>
+              <div class="form-group"><label>客訴欄位</label><input type="text" id="fComplaint" class="settings-input" placeholder="當日客訴與事件處理" /></div>
+              <div class="form-group"><label>其他事件欄位</label><input type="text" id="fShare" class="settings-input" placeholder="當日其他事件分享" /></div>
+            </div>
+            <div class="settings-actions">
+              <button class="btn-save" onclick="saveFields()">儲存欄位設定</button>
+              <span class="save-feedback" id="fieldsFeedback"></span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="toast" id="toast"></div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
