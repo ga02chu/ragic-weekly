@@ -198,7 +198,7 @@ function parseRagicDate(dv) {
 
 /* ── Fetch records for a date range ── */
 async function fetchRange(token, path, dateFrom, dateTo) {
-  const params = new URLSearchParams({ limit: 1000 });
+  const params = new URLSearchParams({ limit: 3000 });
   if (path)  params.set('path', path);
   if (token) params.set('token', token);
   const url = `/api/ragic?${params.toString()}`;
