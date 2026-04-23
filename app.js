@@ -1,8 +1,10 @@
 /* ── State ── */
 const state = {
   records: [],
+  prevRecords: [],
   activeSection: 'dashboard',
   activeRange: 'thisweek',
+  storeFilter: 'all',
   charts: [],
   settings: {},
   fields: {},
@@ -22,15 +24,11 @@ const DEFAULT_FIELDS = {
   share:      '當日其他事件分享',
 };
 
-/* ── 加盟店映射：Ragic分店名稱 → 顯示名稱/類型 ── */
+const BRAND = '#3c2929';
+const BRAND_LIGHT = '#f5efef';
 const FRANCHISE_STORES = ['4號店(藝文店)'];
-function getStoreType(name) {
-  return FRANCHISE_STORES.includes(name) ? 'franchise' : 'direct';
-}
-function getStoreDisplayName(name) {
-  if (name === '4號店(藝文店)') return '藝文店（加盟）';
-  return name;
-}
+function getStoreType(name) { return FRANCHISE_STORES.includes(name) ? 'franchise' : 'direct'; }
+function getStoreDisplayName(name) { return name === '4號店(藝文店)' ? '藝文店（加盟）' : name; }
 
 /* ── Persist ── */
 function loadStorage() {
@@ -109,6 +107,14 @@ function getRange(key) {
   }
   return { from: toISO(from), to: toISO(to) };
 }
+function getPrevRange(key, currentFrom, currentTo) {
+  const from = new Date(currentFrom);
+  const to   = new Date(currentTo);
+  const diff = to - from;
+  const prevTo   = new Date(from - 86400000);
+  const prevFrom = new Date(prevTo - diff);
+  return { from: toISO(prevFrom), to: toISO(prevTo) };
+}
 function applyRange(key) {
   state.activeRange = key;
   document.querySelectorAll('.quick-btn').forEach(b => b.classList.toggle('active', b.dataset.range === key));
@@ -127,10 +133,23 @@ function formatRangeLabel() {
   const to   = document.getElementById('dateTo').value;
   if (!from || !to) return '';
   if (from === to) return from;
-  return `${from}  ～  ${to}`;
+  return `${from} ～ ${to}`;
 }
 
-/* ── Field value getter ── */
+/* ── Store filter ── */
+function setStoreFilter(f) {
+  state.storeFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === f));
+  if (state.records.length > 0) renderAll();
+}
+function filterStores(byStore) {
+  if (state.storeFilter === 'all') return byStore;
+  return Object.fromEntries(Object.entries(byStore).filter(([k,v]) =>
+    state.storeFilter === 'direct' ? v.type === 'direct' : v.type === 'franchise'
+  ));
+}
+
+/* ── Field helpers ── */
 function getF(key) { return state.fields[key] || DEFAULT_FIELDS[key]; }
 function getVal(r, key) {
   const field = getF(key);
@@ -148,9 +167,7 @@ function getVal(r, key) {
     share:      [field, '當日其他事件分享', '其他事件'],
   };
   const list = aliases[key] || [field];
-  for (const k of list) {
-    if (r[k] !== undefined && r[k] !== '') return r[k];
-  }
+  for (const k of list) { if (r[k] !== undefined && r[k] !== '') return r[k]; }
   return null;
 }
 function toNum(v) {
@@ -158,7 +175,42 @@ function toNum(v) {
   return parseFloat(String(v).replace(/[$,\s]/g,'')) || 0;
 }
 
-/* ── Fetch ── */
+/* ── Parse date ── */
+function parseRagicDate(dv) {
+  if (!dv) return null;
+  const s = String(dv).trim();
+  let d = new Date(s.replace(/\//g, '-'));
+  if (!isNaN(d)) return d;
+  const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (mdy) return new Date(`${mdy[3]}-${mdy[1].padStart(2,'0')}-${mdy[2].padStart(2,'0')}`);
+  const ymd = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (ymd) return new Date(`${ymd[1]}-${ymd[2]}-${ymd[3]}`);
+  return null;
+}
+
+/* ── Fetch records for a date range ── */
+async function fetchRange(token, path, dateFrom, dateTo) {
+  const url = `/api/ragic?path=${encodeURIComponent(path)}&limit=1000&token=${encodeURIComponent(token)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const raw = await res.json();
+  if (raw.status === 'ERROR') throw new Error(raw.msg);
+
+  const from = new Date(dateFrom); from.setHours(0,0,0,0);
+  const to   = new Date(dateTo);   to.setHours(23,59,59,999);
+  const allValues = Object.values(raw).filter(r => typeof r === 'object' && r && !Array.isArray(r));
+  return allValues.filter(r => {
+    const dateFields = [getF('date'), '營業日期', '日期', 'Date'];
+    let dv = null;
+    for (const f of dateFields) { if (r[f] !== undefined && r[f] !== '') { dv = r[f]; break; } }
+    if (!dv) return false;
+    const dt = parseRagicDate(dv);
+    if (!dt || isNaN(dt)) return false;
+    return dt >= from && dt <= to;
+  });
+}
+
+/* ── Main fetch ── */
 async function fetchData() {
   const token = state.settings.token;
   const path  = state.settings.path;
@@ -174,40 +226,14 @@ async function fetchData() {
   showLoading();
 
   try {
-    const url = `/api/ragic?path=${encodeURIComponent(path)}&limit=1000&token=${encodeURIComponent(token)}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const raw = await res.json();
+    const prev = getPrevRange(state.activeRange, dateFrom, dateTo);
+    const [records, prevRecords] = await Promise.all([
+      fetchRange(token, path, dateFrom, dateTo),
+      fetchRange(token, path, prev.from, prev.to),
+    ]);
 
-    if (raw.status === 'ERROR') throw new Error(raw.msg);
-
-    const from = new Date(dateFrom); from.setHours(0,0,0,0);
-    const to   = new Date(dateTo);   to.setHours(23,59,59,999);
-
-    function parseRagicDate(dv) {
-      if (!dv) return null;
-      const s = String(dv).trim();
-      let d = new Date(s.replace(/\//g, '-'));
-      if (!isNaN(d)) return d;
-      const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-      if (mdy) return new Date(`${mdy[3]}-${mdy[1].padStart(2,'0')}-${mdy[2].padStart(2,'0')}`);
-      const ymd = s.match(/^(\d{4})(\d{2})(\d{2})$/);
-      if (ymd) return new Date(`${ymd[1]}-${ymd[2]}-${ymd[3]}`);
-      return null;
-    }
-
-    const allValues = Object.values(raw).filter(r => typeof r === 'object' && r && !Array.isArray(r));
-
-    state.records = allValues.filter(r => {
-      const dateFields = [getF('date'), '營業日期', '日期', 'Date'];
-      let dv = null;
-      for (const f of dateFields) { if (r[f] !== undefined && r[f] !== '') { dv = r[f]; break; } }
-      if (!dv) return false;
-      const dt = parseRagicDate(dv);
-      if (!dt || isNaN(dt)) return false;
-      return dt >= from && dt <= to;
-    });
-
+    state.records     = records;
+    state.prevRecords = prevRecords;
     document.getElementById('dateRangeLabel').textContent = formatRangeLabel();
 
     if (state.records.length === 0) {
@@ -224,17 +250,17 @@ async function fetchData() {
   }
 }
 
-/* ── Data processing ── */
-function processData() {
+/* ── Process records into byStore ── */
+function processRecords(records) {
   const byStore = {}, byDate = {};
-  for (const r of state.records) {
-    const storeName = getVal(r, 'store') || '未知分店';
-    const date  = getVal(r, 'date') || '';
-    const rev   = toNum(getVal(r, 'rev'));
-    const guests = toNum(getVal(r, 'guests'));
-    const groups = toNum(getVal(r, 'groups'));
-    const noshow = toNum(getVal(r, 'noshow'));
-    const avgPay = toNum(getVal(r, 'avgPay'));
+  for (const r of records) {
+    const storeName  = getVal(r, 'store') || '未知分店';
+    const date       = getVal(r, 'date') || '';
+    const rev        = toNum(getVal(r, 'rev'));
+    const guests     = toNum(getVal(r, 'guests'));
+    const groups     = toNum(getVal(r, 'groups'));
+    const noshow     = toNum(getVal(r, 'noshow'));
+    const avgPay     = toNum(getVal(r, 'avgPay'));
     const supervisor = getVal(r, 'supervisor') || '-';
     const complaint  = getVal(r, 'complaint')  || '';
     const food       = getVal(r, 'food')       || '';
@@ -251,26 +277,34 @@ function processData() {
     byStore[storeName].noshow += noshow;
     if (avgPay > 0) byStore[storeName].avgPays.push(avgPay);
     byStore[storeName].records.push({ date, supervisor, complaint, food, share });
-
     if (date) byDate[date] = (byDate[date] || 0) + rev;
   }
   return { byStore, byDate };
 }
 
-/* ── Render all ── */
 function renderAll() {
-  const { byStore, byDate } = processData();
-  renderDashboard(byStore, byDate);
-  renderStores(byStore);
-  renderLogs(byStore);
+  const { byStore, byDate } = processRecords(state.records);
+  const { byStore: prevByStore } = processRecords(state.prevRecords);
+  const filtered     = filterStores(byStore);
+  const prevFiltered = filterStores(prevByStore);
+  renderDashboard(filtered, byDate, prevFiltered);
+  renderStores(filtered, prevFiltered);
+  renderLogs(filtered);
+}
+
+/* ── Helpers ── */
+const COLORS = [BRAND,'#5c7a6e','#8B6914','#1e4d8c','#6b4c8a','#1a6b4a','#7a3a1e','#2d5a6b'];
+function fmt(n)  { return Math.round(n).toLocaleString(); }
+function fmtD(s) { return s ? String(s).replace(/-/g,'/') : '-'; }
+function diffBadge(curr, prev) {
+  if (!prev || prev === 0) return '';
+  const pct = ((curr - prev) / prev * 100).toFixed(1);
+  const up = curr >= prev;
+  return `<span class="diff-badge ${up ? 'diff-up' : 'diff-down'}">${up ? '▲' : '▼'} ${Math.abs(pct)}%</span>`;
 }
 
 /* ── Dashboard ── */
-const COLORS = ['#1D9E75','#3266ad','#BA7517','#A32D2D','#533AB7','#0F6E56','#634806','#185FA5'];
-function fmt(n)   { return Math.round(n).toLocaleString(); }
-function fmtD(s)  { return s ? String(s).replace(/-/g,'/') : '-'; }
-
-function renderDashboard(byStore, byDate) {
+function renderDashboard(byStore, byDate, prevByStore) {
   const stores = Object.keys(byStore).sort();
   const totalRev    = stores.reduce((s,k) => s + byStore[k].rev, 0);
   const totalGuests = stores.reduce((s,k) => s + byStore[k].guests, 0);
@@ -280,6 +314,12 @@ function renderDashboard(byStore, byDate) {
   const avgRevPerDay = dates.length > 0 ? totalRev / dates.length : 0;
   const noshowPct = totalGroups > 0 ? ((totalNoshow/totalGroups)*100).toFixed(1) : '0.0';
 
+  const prevStores = Object.keys(prevByStore);
+  const prevRev    = prevStores.reduce((s,k) => s + prevByStore[k].rev, 0);
+  const prevGuests = prevStores.reduce((s,k) => s + prevByStore[k].guests, 0);
+  const prevGroups = prevStores.reduce((s,k) => s + prevByStore[k].groups, 0);
+  const prevNoshow = prevStores.reduce((s,k) => s + prevByStore[k].noshow, 0);
+
   state.charts.forEach(c => c.destroy());
   state.charts = [];
 
@@ -287,17 +327,17 @@ function renderDashboard(byStore, byDate) {
     <div class="metrics-grid">
       <div class="metric-card highlight">
         <div class="m-label">期間總營業額</div>
-        <div class="m-value">$${fmt(totalRev)}</div>
+        <div class="m-value">$${fmt(totalRev)} ${diffBadge(totalRev, prevRev)}</div>
         <div class="m-sub">日均 $${fmt(avgRevPerDay)}</div>
       </div>
       <div class="metric-card">
         <div class="m-label">總用餐人數</div>
-        <div class="m-value">${fmt(totalGuests)}</div>
+        <div class="m-value">${fmt(totalGuests)} ${diffBadge(totalGuests, prevGuests)}</div>
         <div class="m-sub">共 ${fmt(totalGroups)} 組</div>
       </div>
       <div class="metric-card">
         <div class="m-label">No Show 組數</div>
-        <div class="m-value">${fmt(totalNoshow)}</div>
+        <div class="m-value">${fmt(totalNoshow)} ${diffBadge(totalNoshow, prevNoshow)}</div>
         <div class="m-sub">占訂單 ${noshowPct}%</div>
       </div>
       <div class="metric-card">
@@ -326,30 +366,33 @@ function renderDashboard(byStore, byDate) {
       <div class="table-header"><h3>各分店概覽</h3></div>
       <table>
         <thead><tr>
-          <th style="width:20%">分店</th>
-          <th style="width:8%">類型</th>
-          <th style="width:18%">營業額</th>
-          <th style="width:12%">用餐人數</th>
-          <th style="width:12%">用餐組數</th>
-          <th style="width:12%">No Show</th>
-          <th style="width:10%">客單價</th>
-          <th style="width:8%">狀態</th>
+          <th style="width:18%">分店</th>
+          <th style="width:7%">類型</th>
+          <th style="width:17%">營業額</th>
+          <th style="width:11%">用餐人數</th>
+          <th style="width:11%">用餐組數</th>
+          <th style="width:11%">No Show</th>
+          <th style="width:11%">客單價</th>
+          <th style="width:14%">環比狀態</th>
         </tr></thead>
         <tbody>
           ${stores.map(s => {
             const d = byStore[s];
+            const p = prevByStore[s];
             const avg = d.avgPays.length ? d.avgPays.reduce((a,b)=>a+b,0)/d.avgPays.length : 0;
-            const nr = d.groups > 0 ? (d.noshow/d.groups)*100 : 0;
-            const badge = nr > 10 ? '<span class="badge badge-danger">需關注</span>'
-                        : nr > 5  ? '<span class="badge badge-warn">一般</span>'
-                        : '<span class="badge badge-good">良好</span>';
+            const prevRev = p ? p.rev : 0;
+            const revChange = prevRev > 0 ? (d.rev - prevRev) / prevRev * 100 : null;
+            const badge = revChange === null ? '<span class="badge" style="background:#F3F4F6;color:#6b7280">無對比</span>'
+              : revChange >= 5 ? '<span class="badge badge-good">↑ 成長</span>'
+              : revChange <= -5 ? '<span class="badge badge-danger">↓ 衰退</span>'
+              : '<span class="badge badge-warn">→ 持平</span>';
             const typeBadge = d.type === 'franchise'
               ? '<span class="badge" style="background:#EDE9FE;color:#5B21B6">加盟</span>'
-              : '<span class="badge" style="background:#E0F2FE;color:#0369A1">直營</span>';
+              : `<span class="badge" style="background:${BRAND_LIGHT};color:${BRAND}">直營</span>`;
             return `<tr>
               <td class="store-name-cell">${d.displayName}</td>
               <td>${typeBadge}</td>
-              <td>$${fmt(d.rev)}</td>
+              <td>$${fmt(d.rev)} ${diffBadge(d.rev, prevRev)}</td>
               <td>${fmt(d.guests)}</td>
               <td>${fmt(d.groups)}</td>
               <td>${fmt(d.noshow)} 組</td>
@@ -367,11 +410,10 @@ function renderDashboard(byStore, byDate) {
     data: {
       labels: dates.map(d => d.slice(5)),
       datasets: [{
-        label: '當日總營業額',
-        data: dates.map(d => byDate[d]),
-        borderColor: '#1D9E75', backgroundColor: 'rgba(29,158,117,0.08)',
+        label: '當日總營業額', data: dates.map(d => byDate[d]),
+        borderColor: BRAND, backgroundColor: BRAND_LIGHT,
         borderWidth: 2, tension: 0.35, fill: true,
-        pointBackgroundColor: '#1D9E75', pointRadius: 4, pointHoverRadius: 6,
+        pointBackgroundColor: BRAND, pointRadius: 4, pointHoverRadius: 6,
       }]
     },
     options: {
@@ -398,8 +440,8 @@ function renderDashboard(byStore, byDate) {
   }));
 }
 
-/* ── Stores Section ── */
-function renderStores(byStore) {
+/* ── Stores ── */
+function renderStores(byStore, prevByStore) {
   const stores = Object.keys(byStore).sort((a,b) => byStore[b].rev - byStore[a].rev);
   const maxRev = stores.length ? byStore[stores[0]].rev : 1;
 
@@ -411,15 +453,21 @@ function renderStores(byStore) {
           ${stores.map((s,i) => {
             const d = byStore[s];
             const pct = maxRev > 0 ? (d.rev / maxRev * 100) : 0;
+            const p = prevByStore[s];
+            const prevRevPct = p && maxRev > 0 ? (p.rev / maxRev * 100) : 0;
             return `<div class="bar-row">
               <div class="bar-meta">
                 <span class="bm-name">${i+1}. ${d.displayName}</span>
-                <span class="bm-val">$${fmt(d.rev)}</span>
+                <span class="bm-val">$${fmt(d.rev)} ${diffBadge(d.rev, p ? p.rev : 0)}</span>
               </div>
-              <div class="bar-track"><div class="bar-fill" style="width:${pct.toFixed(1)}%; background:${COLORS[i % COLORS.length]}"></div></div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${pct.toFixed(1)}%; background:${COLORS[i % COLORS.length]}"></div>
+                ${p ? `<div class="bar-prev" style="width:${prevRevPct.toFixed(1)}%"></div>` : ''}
+              </div>
             </div>`;
           }).join('')}
         </div>
+        <div style="font-size:11px;color:#9ca3af;margin-top:12px;">深色＝本期　淡色虛線＝上一期</div>
       </div>
     </div>
 
@@ -427,31 +475,36 @@ function renderStores(byStore) {
       <div class="table-header"><h3>詳細數據比較</h3></div>
       <table>
         <thead><tr>
-          <th style="width:18%">分店</th>
+          <th style="width:16%">分店</th>
           <th style="width:7%">類型</th>
           <th style="width:15%">總營業額</th>
-          <th style="width:11%">用餐人數</th>
-          <th style="width:11%">用餐組數</th>
-          <th style="width:10%">No Show</th>
-          <th style="width:10%">No Show率</th>
-          <th style="width:10%">平均客單價</th>
-          <th style="width:8%">狀態</th>
+          <th style="width:10%">上期</th>
+          <th style="width:10%">用餐人數</th>
+          <th style="width:10%">用餐組數</th>
+          <th style="width:9%">No Show</th>
+          <th style="width:9%">No Show率</th>
+          <th style="width:9%">客單價</th>
+          <th style="width:5%">狀態</th>
         </tr></thead>
         <tbody>
           ${stores.map(s => {
             const d = byStore[s];
+            const p = prevByStore[s];
             const avg = d.avgPays.length ? d.avgPays.reduce((a,b)=>a+b,0)/d.avgPays.length : 0;
             const nr = d.groups > 0 ? (d.noshow/d.groups)*100 : 0;
-            const badge = nr > 10 ? '<span class="badge badge-danger">需關注</span>'
-                        : nr > 5  ? '<span class="badge badge-warn">一般</span>'
-                        : '<span class="badge badge-good">良好</span>';
+            const revChange = p && p.rev > 0 ? (d.rev - p.rev) / p.rev * 100 : null;
+            const badge = revChange === null ? '<span class="badge" style="background:#F3F4F6;color:#6b7280">-</span>'
+              : revChange >= 5 ? '<span class="badge badge-good">成長</span>'
+              : revChange <= -5 ? '<span class="badge badge-danger">衰退</span>'
+              : '<span class="badge badge-warn">持平</span>';
             const typeBadge = d.type === 'franchise'
               ? '<span class="badge" style="background:#EDE9FE;color:#5B21B6">加盟</span>'
-              : '<span class="badge" style="background:#E0F2FE;color:#0369A1">直營</span>';
+              : `<span class="badge" style="background:${BRAND_LIGHT};color:${BRAND}">直營</span>`;
             return `<tr>
               <td class="store-name-cell">${d.displayName}</td>
               <td>${typeBadge}</td>
               <td>$${fmt(d.rev)}</td>
+              <td style="color:#9ca3af;font-size:12px">${p ? '$'+fmt(p.rev) : '-'}</td>
               <td>${fmt(d.guests)}</td>
               <td>${fmt(d.groups)}</td>
               <td>${fmt(d.noshow)}</td>
@@ -466,44 +519,59 @@ function renderStores(byStore) {
   `;
 }
 
-/* ── Logs Section with AI Analysis ── */
+/* ── Logs (timeline, direct only, AI analysis) ── */
 async function renderLogs(byStore) {
-  const stores = Object.keys(byStore).sort();
   const dateFrom = document.getElementById('dateFrom').value;
   const dateTo   = document.getElementById('dateTo').value;
 
-  // Build full log text for AI
-  let allLogsText = `日期區間：${dateFrom} ～ ${dateTo}\n\n`;
-  for (const s of stores) {
-    const d = byStore[s];
+  // Direct stores only for logs
+  const directStores = Object.entries(byStore)
+    .filter(([,v]) => v.type === 'direct')
+    .sort(([a],[b]) => a.localeCompare(b));
+
+  // Build log text for AI
+  let allLogsText = '';
+  for (const [s, d] of directStores) {
     const recs = d.records.sort((a,b) => a.date.localeCompare(b.date));
     allLogsText += `【${d.displayName}】\n`;
     for (const r of recs) {
+      const hasContent = (r.complaint && !['無','無客訴'].includes(r.complaint.trim())) ||
+                         (r.food && r.food.trim() !== '無') ||
+                         (r.share && !['無','無事件分享'].includes(r.share.trim()));
+      if (!hasContent) continue;
       allLogsText += `${fmtD(r.date)} 值班：${r.supervisor}\n`;
-      if (r.complaint && r.complaint !== '無' && r.complaint !== '無客訴') allLogsText += `  客訴：${r.complaint}\n`;
-      if (r.food && r.food !== '無') allLogsText += `  食材：${r.food}\n`;
-      if (r.share && r.share !== '無' && r.share !== '無事件分享') allLogsText += `  分享：${r.share}\n`;
+      if (r.complaint && !['無','無客訴'].includes(r.complaint.trim())) allLogsText += `  客訴：${r.complaint}\n`;
+      if (r.food && r.food.trim() !== '無') allLogsText += `  食材：${r.food}\n`;
+      if (r.share && !['無','無事件分享'].includes(r.share.trim())) allLogsText += `  分享：${r.share}\n`;
     }
     allLogsText += '\n';
   }
 
-  // Render log records first
-  const logsHtml = stores.map(s => {
-    const d = byStore[s];
+  // Build timeline HTML per store
+  const timelineHtml = directStores.map(([s, d]) => {
     const recs = d.records.sort((a,b) => a.date.localeCompare(b.date));
-    const entries = recs.map(r => {
-      const hasContent = (r.complaint && r.complaint !== '無' && r.complaint !== '無客訴') ||
-                         (r.food && r.food !== '無') ||
-                         (r.share && r.share !== '無' && r.share !== '無事件分享');
-      if (!hasContent) return `<div class="log-entry"><div class="log-meta">${fmtD(r.date)} | ${r.supervisor}</div><div class="log-empty">無特殊事項</div></div>`;
-      return `<div class="log-entry">
-        <div class="log-meta">${fmtD(r.date)} | ${r.supervisor}</div>
-        ${r.complaint && r.complaint !== '無' && r.complaint !== '無客訴' ? `<div class="log-row log-tag-complaint"><span class="log-tag">客訴</span>${r.complaint}</div>` : ''}
-        ${r.food && r.food !== '無' ? `<div class="log-row log-tag-food"><span class="log-tag">食材</span>${r.food}</div>` : ''}
-        ${r.share && r.share !== '無' && r.share !== '無事件分享' ? `<div class="log-row log-tag-share"><span class="log-tag">分享</span>${r.share}</div>` : ''}
-      </div>`;
+    const items = recs.map(r => {
+      const hasComplaint = r.complaint && !['無','無客訴'].includes(r.complaint.trim());
+      const hasFood      = r.food && r.food.trim() !== '無';
+      const hasShare     = r.share && !['無','無事件分享'].includes(r.share.trim());
+      const hasContent   = hasComplaint || hasFood || hasShare;
+      return `
+        <div class="tl-item ${hasContent ? '' : 'tl-quiet'}">
+          <div class="tl-dot ${hasComplaint ? 'tl-dot-complaint' : hasFood ? 'tl-dot-food' : hasContent ? 'tl-dot-share' : ''}"></div>
+          <div class="tl-body">
+            <div class="tl-meta">${fmtD(r.date)} <span class="tl-sup">${r.supervisor}</span></div>
+            ${hasComplaint ? `<div class="tl-row"><span class="log-tag log-tag-c">客訴</span>${r.complaint}</div>` : ''}
+            ${hasFood      ? `<div class="tl-row"><span class="log-tag log-tag-f">食材</span>${r.food}</div>` : ''}
+            ${hasShare     ? `<div class="tl-row"><span class="log-tag log-tag-s">分享</span>${r.share}</div>` : ''}
+            ${!hasContent  ? `<div class="tl-quiet-text">無特殊事項</div>` : ''}
+          </div>
+        </div>`;
     }).join('');
-    return `<div class="log-card"><div class="lc-store">${d.displayName}</div>${entries}</div>`;
+    return `
+      <div class="tl-store-block">
+        <div class="tl-store-name">${d.displayName}</div>
+        <div class="tl-track">${items}</div>
+      </div>`;
   }).join('');
 
   document.getElementById('logsContent').innerHTML = `
@@ -512,7 +580,7 @@ async function renderLogs(byStore) {
         <div class="ai-icon">✦</div>
         <div>
           <div class="ai-title">AI 週報分析</div>
-          <div class="ai-sub">正在分析本期各分店日誌...</div>
+          <div class="ai-sub" id="aiSub">正在分析本期各分店日誌...</div>
         </div>
       </div>
       <div class="ai-body" id="aiBody">
@@ -525,11 +593,15 @@ async function renderLogs(byStore) {
       </div>
     </div>
 
-    <div class="section-title" style="margin-bottom:12px;">各分店完整日誌</div>
-    <div class="logs-grid">${logsHtml}</div>
+    <div class="section-title" style="margin:0 0 16px;">各分店值班日誌</div>
+    <div class="tl-grid">${timelineHtml}</div>
   `;
 
-  // Call Claude API via proxy for analysis
+  // AI analysis
+  if (!allLogsText.trim()) {
+    document.getElementById('aiBody').innerHTML = '<div class="ai-error">本期無日誌內容可供分析</div>';
+    return;
+  }
   try {
     const response = await fetch('/api/analyze', {
       method: 'POST',
@@ -538,39 +610,27 @@ async function renderLogs(byStore) {
     });
     const data = await response.json();
     if (data.error) throw new Error(data.error);
-    const text = data.text || '分析失敗，請稍後再試';
-
-    // Format output with line breaks
-    const formatted = text
-      .split('\n')
-      .map(line => {
-        if (line.startsWith('📊') || line.startsWith('⚠️') || line.startsWith('✅') || line.startsWith('🎯')) {
-          return `<div class="ai-section-title">${line}</div>`;
-        } else if (line.trim().startsWith('（') || line.trim() === '') {
-          return `<div class="ai-note">${line}</div>`;
-        } else {
-          return `<div class="ai-line">${line}</div>`;
-        }
-      })
-      .join('');
-
+    const text = data.text || '分析失敗';
+    const formatted = text.split('\n').map(line => {
+      if (['📊','⚠️','✅','🎯'].some(e => line.startsWith(e))) return `<div class="ai-section-title">${line}</div>`;
+      if (line.trim() === '') return '<div style="height:6px"></div>';
+      return `<div class="ai-line">${line}</div>`;
+    }).join('');
     document.getElementById('aiBody').innerHTML = `<div class="ai-content">${formatted}</div>`;
-    document.querySelector('.ai-sub').textContent = `已完成分析・${dateFrom} ～ ${dateTo}`;
+    document.getElementById('aiSub').textContent = `已完成分析・${dateFrom} ～ ${dateTo}`;
   } catch(e) {
     document.getElementById('aiBody').innerHTML = `<div class="ai-error">AI 分析暫時無法使用：${e.message}</div>`;
   }
 }
 
-/* ── UI Helpers ── */
+/* ── UI ── */
 function showLoading() {
   const skels = Array(4).fill(0).map(() => `<div class="metric-card"><div class="skeleton" style="height:12px;width:60%;margin-bottom:10px;"></div><div class="skeleton" style="height:28px;width:80%;"></div></div>`).join('');
   document.getElementById('dashboardContent').innerHTML = `<div class="metrics-grid">${skels}</div><div class="skeleton" style="height:260px;border-radius:10px;margin-bottom:14px;"></div>`;
 }
 function showEmptyResult() {
   const empty = `<div class="empty-state"><p class="empty-title">此區間無資料</p><p class="empty-sub">請確認日期區間與 API 設定是否正確</p></div>`;
-  document.getElementById('dashboardContent').innerHTML = empty;
-  document.getElementById('storesContent').innerHTML = empty;
-  document.getElementById('logsContent').innerHTML = empty;
+  ['dashboardContent','storesContent','logsContent'].forEach(id => { document.getElementById(id).innerHTML = empty; });
 }
 function showToast(msg) {
   const el = document.getElementById('toast');
@@ -592,12 +652,16 @@ document.addEventListener('DOMContentLoaded', () => {
   fillSettingsForm();
   updateConnStatus();
   applyRange('thisweek');
+  switchSection('dashboard');
 
   document.querySelectorAll('.quick-btn').forEach(btn => {
     btn.addEventListener('click', () => applyRange(btn.dataset.range));
   });
   document.querySelectorAll('.nav-item').forEach(btn => {
     btn.addEventListener('click', () => switchSection(btn.dataset.section));
+  });
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => setStoreFilter(btn.dataset.filter));
   });
   document.getElementById('fetchBtn').addEventListener('click', fetchData);
   document.getElementById('dateFrom').addEventListener('change', () => applyRange('custom'));
