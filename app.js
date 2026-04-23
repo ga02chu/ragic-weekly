@@ -283,6 +283,10 @@ async function fetchData() {
     }
 
     renderAll();
+    const dateFrom = document.getElementById('dateFrom').value;
+    const dateTo   = document.getElementById('dateTo').value;
+    const { byStore } = processRecords(state.records);
+    renderAchievement(filterStores(byStore), dateFrom, dateTo);
     showToast(`已載入 ${state.records.length} 筆資料`);
   } catch(e) {
     showToast('載入失敗：' + e.message);
@@ -398,6 +402,8 @@ function renderDashboard(byStore, byDate, prevByStore) {
         <div class="m-sub">共 ${state.records.length} 筆資料</div>
       </div>
     </div>
+
+    <div id="achievementContent"></div>
 
     <div class="charts-row">
       <div class="chart-card">
@@ -1181,4 +1187,94 @@ function renderWd({ records, year, month }) {
       scales:{ x:{ ticks:{ callback: v=>'$'+fmt(v), font:{size:10} } }, y:{ ticks:{ font:{size:11} } } }
     }
   }));
+}
+
+/* ════════════════════════════════════════
+   目標達成追蹤
+════════════════════════════════════════ */
+// Store name mapping: Google Sheet name → Ragic display name
+const STORE_NAME_MAP = {
+  '明曜店': '2號店(明曜店)',
+  '台中北屯店': '3號店(台中北屯店)',
+  '藝文店': '4號店(藝文店)',
+  '仁愛店': '品牌概念店(仁愛店)',
+  '英洸家': '英洸家',
+};
+
+async function fetchTargets(month) {
+  const res = await fetch(`/api/sheets?month=${month}`);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data.targets; // { '明曜店': 1365000, ... }
+}
+
+async function renderAchievement(byStore, dateFrom, dateTo) {
+  const el = document.getElementById('achievementContent');
+  if (!el) return;
+
+  el.innerHTML = '<div style="color:#9ca3af;font-size:13px;padding:8px 0">載入目標中...</div>';
+
+  try {
+    const month = parseInt((dateFrom || '').slice(5, 7));
+    if (!month) { el.innerHTML = ''; return; }
+
+    const targets = await fetchTargets(month);
+    if (!Object.keys(targets).length) { el.innerHTML = ''; return; }
+
+    // Today for projection
+    const today = new Date();
+    const toDate = new Date(dateTo);
+    const fromDate = new Date(dateFrom);
+    const totalDays = new Date(today.getFullYear(), month, 0).getDate();
+    const elapsedDays = Math.min(Math.ceil((toDate - fromDate) / 86400000) + 1, totalDays);
+
+    const rows = Object.entries(targets).map(([sheetName, target]) => {
+      const ragicName = STORE_NAME_MAP[sheetName] || sheetName;
+      const storeData = Object.values(byStore).find(s =>
+        s.displayName === ragicName || Object.keys(byStore).find(k => k === ragicName)
+      ) || Object.values(byStore).find(s => s.displayName.includes(sheetName) || sheetName.includes(s.displayName.replace(/\d號店\(|\)/g,'')));
+      const actual = storeData?.rev || 0;
+      const pct = target > 0 ? (actual / target * 100) : 0;
+      const projected = elapsedDays > 0 ? (actual / elapsedDays * totalDays) : 0;
+      const projPct = target > 0 ? (projected / target * 100) : 0;
+      const color = pct >= 100 ? '#0F6E56' : pct >= 80 ? '#BA7517' : '#A32D2D';
+      const barColor = pct >= 100 ? '#1D9E75' : pct >= 80 ? '#EF9F27' : BRAND;
+
+      return { sheetName, target, actual, pct, projected, projPct, color, barColor };
+    });
+
+    el.innerHTML = `
+      <div class="achievement-grid">
+        ${rows.map(r => `
+          <div class="ach-card">
+            <div class="ach-store">${r.sheetName}</div>
+            <div class="ach-nums">
+              <div>
+                <div class="ach-label">實際營業額</div>
+                <div class="ach-val">$${fmt(r.actual)}</div>
+              </div>
+              <div>
+                <div class="ach-label">月目標</div>
+                <div class="ach-val" style="color:#9ca3af">$${fmt(r.target)}</div>
+              </div>
+              <div>
+                <div class="ach-label">預估月底</div>
+                <div class="ach-val" style="color:${r.projPct>=100?'#0F6E56':'#BA7517'}">$${fmt(r.projected)}</div>
+              </div>
+            </div>
+            <div class="ach-bar-wrap">
+              <div class="ach-bar-track">
+                <div class="ach-bar-fill" style="width:${Math.min(r.pct,100).toFixed(1)}%;background:${r.barColor}"></div>
+                ${r.pct > 100 ? `<div class="ach-bar-over"></div>` : ''}
+              </div>
+              <span class="ach-pct" style="color:${r.color}">${r.pct.toFixed(1)}%</span>
+            </div>
+            <div class="ach-sub">預估達成率 ${r.projPct.toFixed(1)}%・差距 ${r.actual < r.target ? '▼' : '▲'} $${fmt(Math.abs(r.actual - r.target))}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } catch(e) {
+    el.innerHTML = `<div style="font-size:12px;color:#9ca3af">目標資料載入失敗：${e.message}</div>`;
+  }
 }
