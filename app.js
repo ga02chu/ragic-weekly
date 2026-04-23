@@ -165,7 +165,7 @@ async function fetchData() {
   showLoading();
 
   try {
-    const url = `https://${server}.ragic.com/${path}?api&limit=1000`;
+    const url = `/api/ragic?path=${encodeURIComponent(path)}&limit=1000`;
     const res = await fetch(url, { headers: { 'Authorization': 'Basic ' + token } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const raw = await res.json();
