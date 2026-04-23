@@ -283,10 +283,16 @@ async function fetchData() {
     }
 
     renderAll();
-    const dateFrom = document.getElementById('dateFrom').value;
-    const dateTo   = document.getElementById('dateTo').value;
-    const { byStore } = processRecords(state.records);
-    renderAchievement(filterStores(byStore), dateFrom, dateTo);
+    // Achievement is optional - don't let it block main render
+    try {
+      const dateFrom = document.getElementById('dateFrom').value;
+      const dateTo   = document.getElementById('dateTo').value;
+      const { byStore } = processRecords(state.records);
+      renderAchievement(filterStores(byStore), dateFrom, dateTo).catch(() => {
+        const el = document.getElementById('achievementContent');
+        if (el) el.innerHTML = '';
+      });
+    } catch(e) {}
     showToast(`已載入 ${state.records.length} 筆資料`);
   } catch(e) {
     showToast('載入失敗：' + e.message);
@@ -1202,10 +1208,13 @@ const STORE_NAME_MAP = {
 };
 
 async function fetchTargets(month) {
-  const res = await fetch(`/api/sheets?month=${month}`);
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data.targets; // { '明曜店': 1365000, ... }
+  try {
+    const res = await fetch(`/api/sheets?month=${month}`);
+    if (!res.ok) return {};
+    const data = await res.json();
+    if (data.error) return {};
+    return data.targets || {};
+  } catch { return {}; }
 }
 
 async function renderAchievement(byStore, dateFrom, dateTo) {
