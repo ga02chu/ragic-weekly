@@ -173,11 +173,37 @@ async function fetchData() {
     const from = new Date(dateFrom); from.setHours(0,0,0,0);
     const to   = new Date(dateTo);   to.setHours(23,59,59,999);
 
-    state.records = Object.values(raw).filter(r => {
-      if (typeof r !== 'object' || !r || r._ragicId !== undefined) return false;
-      const dv = getVal(r, 'date');
+    // Debug: log raw keys and first record
+    const allValues = Object.values(raw).filter(r => typeof r === 'object' && r && !Array.isArray(r));
+    if (allValues.length > 0) {
+      console.log('[Ragic] Total records:', allValues.length);
+      console.log('[Ragic] First record keys:', Object.keys(allValues[0]));
+      console.log('[Ragic] First record:', allValues[0]);
+    }
+
+    function parseRagicDate(dv) {
+      if (!dv) return null;
+      const s = String(dv).trim();
+      // Try formats: YYYY/MM/DD, YYYY-MM-DD, MM/DD/YYYY, YYYYMMDD
+      let d = new Date(s.replace(/\//g, '-'));
+      if (!isNaN(d)) return d;
+      // MM/DD/YYYY
+      const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (mdy) return new Date(`${mdy[3]}-${mdy[1].padStart(2,'0')}-${mdy[2].padStart(2,'0')}`);
+      // YYYYMMDD
+      const ymd = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+      if (ymd) return new Date(`${ymd[1]}-${ymd[2]}-${ymd[3]}`);
+      return null;
+    }
+
+    state.records = allValues.filter(r => {
+      // Try all possible date field names
+      const dateFields = [getF('date'), '營業日期', '日期', 'Date', 'date', '日報日期', '填寫日期'];
+      let dv = null;
+      for (const f of dateFields) { if (r[f] !== undefined && r[f] !== '') { dv = r[f]; break; } }
       if (!dv) return false;
-      const dt = new Date(String(dv).replace(/\//g,'-'));
+      const dt = parseRagicDate(dv);
+      if (!dt || isNaN(dt)) return false;
       return dt >= from && dt <= to;
     });
 
