@@ -1231,16 +1231,10 @@ async function renderAchievement(byStore, dateFrom, dateTo) {
     const targets = await fetchTargets(month);
     if (!Object.keys(targets).length) { el.innerHTML = ''; return; }
 
-    // Today for projection
-    const today = new Date();
-    const toDate = new Date(dateTo);
-    const fromDate = new Date(dateFrom);
-    const totalDays = new Date(today.getFullYear(), month, 0).getDate();
-    const elapsedDays = Math.min(Math.ceil((toDate - fromDate) / 86400000) + 1, totalDays);
-
-    // Calculate elapsed days properly (days with data so far this month)
+    // Calculate elapsed days
     const today = new Date();
     const todayDay = today.getDate();
+    const totalDays = new Date(today.getFullYear(), month, 0).getDate();
     const isCurrentMonth = (today.getFullYear() === new Date(dateFrom).getFullYear() &&
                             today.getMonth() === new Date(dateFrom).getMonth());
     const effectiveElapsed = isCurrentMonth ? todayDay : totalDays;
