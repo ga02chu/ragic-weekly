@@ -75,10 +75,18 @@ function toggleToken() {
   if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '隱藏'; }
   else { inp.type = 'password'; btn.textContent = '顯示'; }
 }
-function updateConnStatus() {
+async function updateConnStatus() {
   const el = document.getElementById('connStatus');
   const dot = el.querySelector('.dot');
   const txt = el.querySelector('span:last-child');
+  try {
+    const r = await fetch('/api/config');
+    const d = await r.json();
+    if (d.hasToken && d.hasPath) {
+      dot.className = 'dot dot-green'; txt.textContent = '系統已連線';
+      state.serverConfig = true; return;
+    }
+  } catch {}
   if (state.settings.token && state.settings.path) {
     dot.className = 'dot dot-green'; txt.textContent = '已設定';
   } else {
@@ -190,7 +198,10 @@ function parseRagicDate(dv) {
 
 /* ── Fetch records for a date range ── */
 async function fetchRange(token, path, dateFrom, dateTo) {
-  const url = `/api/ragic?path=${encodeURIComponent(path)}&limit=1000&token=${encodeURIComponent(token)}`;
+  const params = new URLSearchParams({ limit: 1000 });
+  if (path)  params.set('path', path);
+  if (token) params.set('token', token);
+  const url = `/api/ragic?${params.toString()}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const raw = await res.json();
@@ -212,11 +223,9 @@ async function fetchRange(token, path, dateFrom, dateTo) {
 
 /* ── Main fetch ── */
 async function fetchData() {
-  const token = state.settings.token;
-  const path  = state.settings.path;
-  if (!token || !path) {
-    showToast('請先在設定頁填入 API Token 與表單路徑'); switchSection('settings'); return;
-  }
+  const token = state.settings.token || '';
+  const path  = state.settings.path  || '';
+  // If server has env vars, token/path can be empty
   const dateFrom = document.getElementById('dateFrom').value;
   const dateTo   = document.getElementById('dateTo').value;
   if (!dateFrom || !dateTo) { showToast('請選擇日期區間'); return; }
