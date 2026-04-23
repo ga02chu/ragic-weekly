@@ -657,6 +657,9 @@ function switchSection(key) {
   const isYoy = key === 'yoy';
   document.getElementById('mainTopbarRight').style.display = isYoy ? 'none' : 'flex';
   document.getElementById('yoyTopbarRight').style.display  = isYoy ? 'flex' : 'none';
+  // Clear date label when switching to yoy or settings
+  if (isYoy || key === 'settings') document.getElementById('dateRangeLabel').textContent = '';
+  else if (state.records.length > 0) document.getElementById('dateRangeLabel').textContent = formatRangeLabel();
 }
 
 /* ── Init ── */
