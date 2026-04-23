@@ -1,13 +1,7 @@
-const SHEET_ID = '1MZ9VZ5Tg9OeQEcJqwP-lsqEE3i8Yd9oq';
+const SHEET_ID = '1fMlJSs6u9JkSQEhQiRYhlKF4eIJXU46yVgfnjv7jBxo';
 const MONTH_TABS = ['一月份保底業績','二月份保底業績','三月份保底業績','四月份保底業績',
   '五月份保底業績','六月份保底業績','七月份保底業績','八月份保底業績',
   '九月份保底業績','十月份保底業績','十一月份保底業績','十二月份保底業績'];
-
-// Each store block is 9 cols wide
-// Store name at col E(4), target at F(2) row 2 = index 1
-// Blocks: cols 4-12, 13-21, 22-30, 31-39, 40-48 (0-indexed)
-const STORE_NAME_COL_OFFSETS  = [4, 13, 22, 31, 40];  // E, N, W, AF, AO
-const STORE_TARGET_COL_OFFSETS = [5, 14, 23, 32, 41]; // F, O, X, AG, AP
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -21,26 +15,39 @@ export default async function handler(req, res) {
   if (!tabName) return res.status(400).json({ error: 'Invalid month' });
 
   try {
-    // Fetch rows 2 (store names + targets) - row index 2 in sheets = A2:AQ2
-    const range = encodeURIComponent(`${tabName}!A2:AQ2`);
+    // Fetch rows 2-3 to get store names and targets
+    const range = encodeURIComponent(`${tabName}!A2:AQ3`);
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${process.env.GOOGLE_SHEETS_API_KEY}`;
     const r = await fetch(url);
     const data = await r.json();
 
     if (data.error) return res.status(500).json({ error: data.error.message });
 
-    const row = (data.values || [[]])[0] || [];
+    const rows = data.values || [];
+    const row2 = rows[0] || []; // store names row
+    const row3 = rows[1] || []; // targets row
 
+    // Find store names in row2 and match targets in row3
+    // Store name appears at indices 3,12,21,30,39 (0-indexed: D col)
+    // Target appears at same col offset in row3
     const targets = {};
-    for (let i = 0; i < STORE_NAME_COL_OFFSETS.length; i++) {
-      const nameCol   = STORE_NAME_COL_OFFSETS[i];
-      const targetCol = STORE_TARGET_COL_OFFSETS[i];
-      const name   = row[nameCol]   ? String(row[nameCol]).trim()   : null;
-      const target = row[targetCol] ? parseInt(String(row[targetCol]).replace(/[,$\s]/g,'')) : 0;
-      if (name && target > 0) targets[name] = target;
+
+    for (let i = 0; i < row2.length; i++) {
+      const cell = String(row2[i] || '').trim();
+      // Store names are things like 明曜店, 仁愛店, 北屯店, 英洸家, 藝文店
+      if (cell && !['月份','2026/04','2026/03','2026/02','2026/01','2025','實際總業績','本月目標依據','表一',''].includes(cell)
+          && !cell.match(/^\d/) && cell.length >= 2 && cell.length <= 10) {
+        // Look for the target in row3 at same or nearby position
+        // Target col is usually i+2 (F col after store name at D col)
+        const targetVal = row3[i+2] || row3[i+1] || row3[i] || '';
+        const target = parseInt(String(targetVal).replace(/[,$\s]/g,''));
+        if (target > 0 && target > 100000) { // reasonable target amount
+          targets[cell] = target;
+        }
+      }
     }
 
-    return res.status(200).json({ targets, tab: tabName, debug: { rowLength: row.length, row: row.slice(0,50) } });
+    return res.status(200).json({ targets, tab: tabName });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
