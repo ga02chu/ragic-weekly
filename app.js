@@ -95,7 +95,12 @@ async function updateConnStatus() {
 }
 
 /* ── Date helpers ── */
-function toISO(d) { return d.toISOString().slice(0,10); }
+function toISO(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 function getRange(key) {
   const t = new Date();
   const dow = t.getDay();
