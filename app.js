@@ -1119,14 +1119,14 @@ function renderWd({ records, year, month }) {
       <div class="table-header"><h3>各分店平假日詳細比較</h3></div>
       <table>
         <thead><tr>
-          <th style="width:18%">分店</th>
-          <th style="width:15%">平日營業額</th>
-          <th style="width:15%">假日營業額</th>
-          <th style="width:12%">平日來客</th>
-          <th style="width:12%">假日來客</th>
-          <th style="width:12%">平日客單價</th>
-          <th style="width:12%">假日客單價</th>
-          <th style="width:4%">差異</th>
+          <th style="width:16%">分店</th>
+          <th style="width:13%">平日營業額</th>
+          <th style="width:13%">假日營業額</th>
+          <th style="width:10%">平日來客</th>
+          <th style="width:10%">假日來客</th>
+          <th style="width:11%">平日客單價</th>
+          <th style="width:11%">假日客單價</th>
+          <th style="width:16%">客單價差異（假日-平日）</th>
         </tr></thead>
         <tbody>
           ${allStores.map(s => {
@@ -1150,7 +1150,7 @@ function renderWd({ records, year, month }) {
               <td>$${fmt(wR)}</td><td>$${fmt(hR)}</td>
               <td>${fmt(wG)}</td><td>${fmt(hG)}</td>
               <td>$${fmt(wAv)}</td><td>$${fmt(hAv)}</td>
-              <td>${badge}</td>
+              <td style="white-space:nowrap">${badge}</td>
             </tr>`;
           }).join('')}
         </tbody>
