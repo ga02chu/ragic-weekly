@@ -1201,6 +1201,7 @@ function renderWd({ records, year, month }) {
 // Store name mapping: Google Sheet name → Ragic display name
 const STORE_NAME_MAP = {
   '明曜店': '2號店(明曜店)',
+  '北屯店': '3號店(台中北屯店)',
   '台中北屯店': '3號店(台中北屯店)',
   '藝文店': '4號店(藝文店)',
   '仁愛店': '品牌概念店(仁愛店)',
