@@ -285,10 +285,10 @@ async function fetchData() {
     renderAll();
     // Achievement is optional - don't let it block main render
     try {
-      const dateFrom = document.getElementById('dateFrom').value;
-      const dateTo   = document.getElementById('dateTo').value;
-      const { byStore } = processRecords(state.records);
-      renderAchievement(filterStores(byStore), dateFrom, dateTo).catch(() => {
+      const achFrom = document.getElementById('dateFrom').value;
+      const achTo   = document.getElementById('dateTo').value;
+      const { byStore: achByStore } = processRecords(state.records);
+      renderAchievement(filterStores(achByStore), achFrom, achTo).catch(() => {
         const el = document.getElementById('achievementContent');
         if (el) el.innerHTML = '';
       });
@@ -1240,10 +1240,13 @@ async function renderAchievement(byStore, dateFrom, dateTo) {
 
     const rows = Object.entries(targets).map(([sheetName, target]) => {
       const ragicName = STORE_NAME_MAP[sheetName] || sheetName;
-      const storeData = Object.values(byStore).find(s =>
-        s.displayName === ragicName || Object.keys(byStore).find(k => k === ragicName)
-      ) || Object.values(byStore).find(s => s.displayName.includes(sheetName) || sheetName.includes(s.displayName.replace(/\d號店\(|\)/g,'')));
-      const actual = storeData?.rev || 0;
+      // Match by ragic store key or displayName
+      const storeEntry = Object.entries(byStore).find(([k, v]) =>
+        k === ragicName || v.displayName === ragicName ||
+        k.includes(sheetName) || v.displayName.includes(sheetName) ||
+        sheetName.includes(k.replace(/\d號店\(|\)/g,''))
+      );
+      const actual = storeEntry ? storeEntry[1].rev : 0;
       const pct = target > 0 ? (actual / target * 100) : 0;
       const projected = elapsedDays > 0 ? (actual / elapsedDays * totalDays) : 0;
       const projPct = target > 0 ? (projected / target * 100) : 0;
