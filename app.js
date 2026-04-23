@@ -1137,11 +1137,14 @@ function renderWd({ records, year, month }) {
             const wAp = w?.avgPays||[], hAp = h?.avgPays||[];
             const wAv = wAp.length ? wAp.reduce((a,b)=>a+b,0)/wAp.length : 0;
             const hAv = hAp.length ? hAp.reduce((a,b)=>a+b,0)/hAp.length : 0;
-            const diff = hAv > 0 ? ((hAv-wAv)/wAv*100) : null;
-            const badge = diff === null ? '-'
-              : diff >= 5  ? '<span class="badge badge-good">假日↑</span>'
-              : diff <= -5 ? '<span class="badge badge-danger">假日↓</span>'
-              : '<span class="badge badge-warn">相近</span>';
+            const diff = wAv > 0 ? (hAv - wAv) : null;
+            const diffPct = wAv > 0 ? ((hAv - wAv) / wAv * 100) : null;
+            const badge = diff === null ? '<span style="color:#9ca3af">-</span>'
+              : diff > 0
+                ? '<span class="diff-badge diff-up">▲ $' + fmt(Math.abs(diff)) + ' (+' + Math.abs(diffPct).toFixed(1) + '%)</span>'
+                : diff < 0
+                ? '<span class="diff-badge diff-down">▼ $' + fmt(Math.abs(diff)) + ' (-' + Math.abs(diffPct).toFixed(1) + '%)</span>'
+                : '<span style="color:#9ca3af">持平</span>';
             return `<tr>
               <td class="store-name-cell">${dn}</td>
               <td>$${fmt(wR)}</td><td>$${fmt(hR)}</td>
