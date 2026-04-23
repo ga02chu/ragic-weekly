@@ -5,14 +5,36 @@ const state = {
   activeSection: 'dashboard',
   activeRange: 'thisweek',
   storeFilter: 'all',
+  sessionFilter: 'all', // 'all' | 'noon' | 'evening'
   charts: [],
   settings: {},
   fields: {},
 };
 
+/* ── Taiwan National Holidays (2024-2026) ── */
+const TW_HOLIDAYS = new Set([
+  // 2024
+  '2024-01-01','2024-02-08','2024-02-09','2024-02-10','2024-02-11','2024-02-12','2024-02-13','2024-02-14',
+  '2024-02-28','2024-04-04','2024-04-05','2024-05-01','2024-06-10','2024-09-17','2024-10-10',
+  // 2025
+  '2025-01-01','2025-01-27','2025-01-28','2025-01-29','2025-01-30','2025-01-31','2025-02-03','2025-02-04',
+  '2025-02-28','2025-04-03','2025-04-04','2025-05-01','2025-05-30','2025-06-10','2025-10-06','2025-10-10',
+  // 2026
+  '2026-01-01','2026-02-16','2026-02-17','2026-02-18','2026-02-19','2026-02-20','2026-02-23','2026-02-24',
+  '2026-02-28','2026-04-03','2026-04-04','2026-05-01','2026-06-19','2026-09-25','2026-10-09','2026-10-10',
+]);
+function isHoliday(dateStr) {
+  if (!dateStr) return false;
+  const d = new Date(String(dateStr).replace(/\//g,'-'));
+  const dow = d.getDay();
+  const iso = String(dateStr).replace(/\//g,'-').slice(0,10);
+  return dow === 0 || dow === 6 || TW_HOLIDAYS.has(iso);
+}
+
 const DEFAULT_FIELDS = {
   date:       '營業日期',
   store:      '分店簡稱',
+  session:    '營業時間',
   rev:        '當日營業額',
   guests:     '用餐人數',
   groups:     '用餐組數',
@@ -152,7 +174,12 @@ function formatRangeLabel() {
 /* ── Store filter ── */
 function setStoreFilter(f) {
   state.storeFilter = f;
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === f));
+  document.querySelectorAll('.filter-btn[data-filter]').forEach(b => b.classList.toggle('active', b.dataset.filter === f));
+  if (state.records.length > 0) renderAll();
+}
+function setSessionFilter(f) {
+  state.sessionFilter = f;
+  document.querySelectorAll('.session-btn').forEach(b => b.classList.toggle('active', b.dataset.session === f));
   if (state.records.length > 0) renderAll();
 }
 function filterStores(byStore) {
@@ -169,6 +196,7 @@ function getVal(r, key) {
   const aliases = {
     date:       [field, '營業日期', '日期', 'Date'],
     store:      [field, '分店簡稱', '分店', 'store'],
+    session:    [field, '營業時間', 'session'],
     rev:        [field, '當日營業額', '營業額'],
     guests:     [field, '用餐人數', '來客數'],
     groups:     [field, '用餐組數', '訂單數'],
@@ -275,10 +303,15 @@ function processRecords(records) {
     const groups     = toNum(getVal(r, 'groups'));
     const noshow     = toNum(getVal(r, 'noshow'));
     const avgPay     = toNum(getVal(r, 'avgPay'));
+    const session    = getVal(r, 'session')    || '';
     const supervisor = getVal(r, 'supervisor') || '-';
     const complaint  = getVal(r, 'complaint')  || '';
     const food       = getVal(r, 'food')       || '';
     const share      = getVal(r, 'share')      || '';
+
+    // Session filter
+    if (state.sessionFilter === 'noon'    && session !== '中午') continue;
+    if (state.sessionFilter === 'evening' && session !== '晚上') continue;
 
     if (!byStore[storeName]) byStore[storeName] = {
       rev:0, guests:0, groups:0, noshow:0, avgPays:[], records:[],
@@ -290,7 +323,7 @@ function processRecords(records) {
     byStore[storeName].groups += groups;
     byStore[storeName].noshow += noshow;
     if (avgPay > 0) byStore[storeName].avgPays.push(avgPay);
-    byStore[storeName].records.push({ date, supervisor, complaint, food, share });
+    byStore[storeName].records.push({ date, session, supervisor, complaint, food, share });
     if (date) byDate[date] = (byDate[date] || 0) + rev;
   }
   return { byStore, byDate };
@@ -338,6 +371,11 @@ function renderDashboard(byStore, byDate, prevByStore) {
   state.charts = [];
 
   document.getElementById('dashboardContent').innerHTML = `
+    <div class="session-bar">
+      <button class="session-btn active" data-session="all" onclick="setSessionFilter('all')">全部時段</button>
+      <button class="session-btn" data-session="noon" onclick="setSessionFilter('noon')">中午</button>
+      <button class="session-btn" data-session="evening" onclick="setSessionFilter('evening')">晚上</button>
+    </div>
     <div class="metrics-grid">
       <div class="metric-card highlight">
         <div class="m-label">期間總營業額</div>
@@ -460,6 +498,11 @@ function renderStores(byStore, prevByStore) {
   const maxRev = stores.length ? byStore[stores[0]].rev : 1;
 
   document.getElementById('storesContent').innerHTML = `
+    <div class="session-bar">
+      <button class="session-btn active" data-session="all" onclick="setSessionFilter('all')">全部時段</button>
+      <button class="session-btn" data-session="noon" onclick="setSessionFilter('noon')">中午</button>
+      <button class="session-btn" data-session="evening" onclick="setSessionFilter('evening')">晚上</button>
+    </div>
     <div class="table-card" style="margin-bottom:20px;">
       <div class="table-header"><h3>分店營業額排行</h3></div>
       <div style="padding:20px 24px;">
@@ -589,6 +632,11 @@ async function renderLogs(byStore) {
   }).join('');
 
   document.getElementById('logsContent').innerHTML = `
+    <div class="session-bar">
+      <button class="session-btn active" data-session="all" onclick="setSessionFilter('all')">全部時段</button>
+      <button class="session-btn" data-session="noon" onclick="setSessionFilter('noon')">中午</button>
+      <button class="session-btn" data-session="evening" onclick="setSessionFilter('evening')">晚上</button>
+    </div>
     <div class="ai-analysis-card" id="aiAnalysisCard">
       <div class="ai-header">
         <div class="ai-icon">✦</div>
@@ -656,14 +704,16 @@ function switchSection(key) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.getElementById('section-' + key).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.section === key));
-  const titles = { dashboard:'總覽', stores:'分店比較', logs:'主管日誌', yoy:'年度比較', settings:'設定' };
+  const titles = { dashboard:'總覽', stores:'分店比較', logs:'主管日誌', yoy:'年度比較', wd:'平假日分析', settings:'設定' };
   document.getElementById('pageTitle').textContent = titles[key] || '';
   // Show/hide topbars
   const isYoy = key === 'yoy';
-  document.getElementById('mainTopbarRight').style.display = isYoy ? 'none' : 'flex';
+  const isWd  = key === 'wd';
+  document.getElementById('mainTopbarRight').style.display = (isYoy||isWd) ? 'none' : 'flex';
   document.getElementById('yoyTopbarRight').style.display  = isYoy ? 'flex' : 'none';
+  document.getElementById('wdTopbarRight').style.display   = isWd  ? 'flex' : 'none';
   // Clear date label when switching to yoy or settings
-  if (isYoy || key === 'settings') document.getElementById('dateRangeLabel').textContent = '';
+  if (isYoy || isWd || key === 'settings') document.getElementById('dateRangeLabel').textContent = '';
   else if (state.records.length > 0) document.getElementById('dateRangeLabel').textContent = formatRangeLabel();
 }
 
@@ -675,6 +725,7 @@ document.addEventListener('DOMContentLoaded', () => {
   applyRange('thisweek');
   switchSection('dashboard');
   initYoyControls();
+  initWdControls();
 
   document.querySelectorAll('.quick-btn').forEach(btn => {
     btn.addEventListener('click', () => applyRange(btn.dataset.range));
@@ -899,6 +950,232 @@ function renderYoy(currRecords, prevRecords, currYear, prevYear, month) {
         x: { ticks: { callback: v => '$'+fmt(v), font: { size: 10 } } },
         y: { ticks: { font: { size: 11 } } }
       }
+    }
+  }));
+}
+
+/* ════════════════════════════════════════
+   平假日分析 (Weekday vs Holiday)
+════════════════════════════════════════ */
+const wdState = { filter: 'all', sessionFilter: 'all', charts: [] };
+
+function initWdControls() {
+  // Init year selector
+  const wdYearSel = document.getElementById('wdYear');
+  const now = new Date();
+  for (let y = now.getFullYear(); y >= now.getFullYear() - 3; y--) {
+    const opt = document.createElement('option');
+    opt.value = y; opt.textContent = y + '年';
+    wdYearSel.appendChild(opt);
+  }
+  document.getElementById('wdMonth').value = now.getMonth() + 1;
+  document.getElementById('wdFetchBtn').addEventListener('click', fetchWd);
+  document.querySelectorAll('[data-wd-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      wdState.filter = btn.dataset.wdFilter;
+      document.querySelectorAll('[data-wd-filter]').forEach(b => b.classList.toggle('active', b.dataset.wdFilter === wdState.filter));
+      if (wdState.lastData) renderWd(wdState.lastData);
+    });
+  });
+  document.querySelectorAll('[data-wd-session]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      wdState.sessionFilter = btn.dataset.wdSession;
+      document.querySelectorAll('[data-wd-session]').forEach(b => b.classList.toggle('active', b.dataset.wdSession === wdState.sessionFilter));
+      if (wdState.lastData) renderWd(wdState.lastData);
+    });
+  });
+}
+
+async function fetchWd() {
+  const token = state.settings.token || '';
+  const path  = state.settings.path  || '';
+  const year  = parseInt(document.getElementById('wdYear').value);
+  const month = parseInt(document.getElementById('wdMonth').value);
+
+  const btn = document.getElementById('wdFetchBtn');
+  btn.disabled = true; btn.textContent = '查詢中…';
+  document.getElementById('wdContent').innerHTML = '<div class="loading-state" style="padding:3rem;text-align:center;color:#6b7280">載入中...</div>';
+
+  const pad = n => String(n).padStart(2,'0');
+  const lastDay = new Date(year, month, 0).getDate();
+  const from = `${year}-${pad(month)}-01`;
+  const to   = `${year}-${pad(month)}-${pad(lastDay)}`;
+
+  try {
+    const records = await fetchRange(token, path, from, to);
+    wdState.lastData = { records, year, month };
+    renderWd(wdState.lastData);
+    showToast(`已載入 ${year}年${month}月資料`);
+  } catch(e) {
+    showToast('載入失敗：' + e.message);
+    document.getElementById('wdContent').innerHTML = '<div class="empty-state"><p class="empty-title">載入失敗</p></div>';
+  } finally {
+    btn.disabled = false; btn.textContent = '載入分析';
+  }
+}
+
+function processWdRecords(records) {
+  const wd = { rev:0, guests:0, groups:0, noshow:0, avgPays:[], days:new Set() };
+  const hd = { rev:0, guests:0, groups:0, noshow:0, avgPays:[], days:new Set() };
+  const wdByStore = {}, hdByStore = {};
+
+  for (const r of records) {
+    const storeName = getVal(r, 'store') || '未知分店';
+    const session   = getVal(r, 'session') || '';
+    const date      = getVal(r, 'date') || '';
+
+    // Store filter
+    const type = getStoreType(storeName);
+    if (wdState.filter === 'direct'    && type !== 'direct')    continue;
+    if (wdState.filter === 'franchise' && type !== 'franchise') continue;
+    // Session filter
+    if (wdState.sessionFilter === 'noon'    && session !== '中午') continue;
+    if (wdState.sessionFilter === 'evening' && session !== '晚上') continue;
+
+    const rev    = toNum(getVal(r, 'rev'));
+    const guests = toNum(getVal(r, 'guests'));
+    const groups = toNum(getVal(r, 'groups'));
+    const noshow = toNum(getVal(r, 'noshow'));
+    const avgPay = toNum(getVal(r, 'avgPay'));
+    const displayName = getStoreDisplayName(storeName);
+    const holiday = isHoliday(date);
+    const bucket  = holiday ? hd : wd;
+    const byStore = holiday ? hdByStore : wdByStore;
+
+    bucket.rev    += rev;
+    bucket.guests += guests;
+    bucket.groups += groups;
+    bucket.noshow += noshow;
+    if (avgPay > 0) bucket.avgPays.push(avgPay);
+    if (date) bucket.days.add(date);
+
+    if (!byStore[storeName]) byStore[storeName] = { rev:0, guests:0, groups:0, avgPays:[], displayName, type };
+    byStore[storeName].rev    += rev;
+    byStore[storeName].guests += guests;
+    byStore[storeName].groups += groups;
+    if (avgPay > 0) byStore[storeName].avgPays.push(avgPay);
+  }
+  return { wd, hd, wdByStore, hdByStore };
+}
+
+function renderWd({ records, year, month }) {
+  wdState.charts.forEach(c => c.destroy()); wdState.charts = [];
+  const { wd, hd, wdByStore, hdByStore } = processWdRecords(records);
+
+  const wdAvg = wd.avgPays.length ? wd.avgPays.reduce((a,b)=>a+b,0)/wd.avgPays.length : 0;
+  const hdAvg = hd.avgPays.length ? hd.avgPays.reduce((a,b)=>a+b,0)/hd.avgPays.length : 0;
+  const wdDays = wd.days.size || 1;
+  const hdDays = hd.days.size || 1;
+
+  const allStores = Array.from(new Set([...Object.keys(wdByStore), ...Object.keys(hdByStore)])).sort();
+
+  document.getElementById('wdContent').innerHTML = `
+    <div class="yoy-header">
+      <span class="yoy-badge yoy-curr">平日</span>
+      <span style="color:#9ca3af;font-size:13px;">vs</span>
+      <span class="yoy-badge" style="background:#5c7a6e;color:#fff;">假日</span>
+      <span style="font-size:12px;color:#9ca3af;margin-left:8px;">${year}年${month}月・平日${wdDays}天 / 假日${hdDays}天</span>
+    </div>
+
+    <div class="metrics-grid" style="margin-bottom:20px;">
+      <div class="metric-card highlight">
+        <div class="m-label">平日日均營業額</div>
+        <div class="m-value">$${fmt(wd.rev/wdDays)} ${diffBadge(wd.rev/wdDays, hd.rev/hdDays)}</div>
+        <div class="m-sub">假日日均 $${fmt(hd.rev/hdDays)}</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">平日日均來客</div>
+        <div class="m-value">${fmt(wd.guests/wdDays)} ${diffBadge(wd.guests/wdDays, hd.guests/hdDays)}</div>
+        <div class="m-sub">假日日均 ${fmt(hd.guests/hdDays)}</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">平日客單價</div>
+        <div class="m-value">$${fmt(wdAvg)} ${diffBadge(wdAvg, hdAvg)}</div>
+        <div class="m-sub">假日客單價 $${fmt(hdAvg)}</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">平日 No Show</div>
+        <div class="m-value">${fmt(wd.noshow)}</div>
+        <div class="m-sub">假日 No Show ${fmt(hd.noshow)}</div>
+      </div>
+    </div>
+
+    <div class="charts-row" style="margin-bottom:20px;">
+      <div class="chart-card">
+        <div class="c-title">各分店日均營業額（平日 vs 假日）</div>
+        <div class="chart-wrap" style="height:${Math.max(200, allStores.length*55)}px;">
+          <canvas id="wdRevChart" role="img" aria-label="平假日營業額對比">平假日比較</canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="c-title">各分店客單價（平日 vs 假日）</div>
+        <div class="chart-wrap" style="height:${Math.max(200, allStores.length*55)}px;">
+          <canvas id="wdAvgChart" role="img" aria-label="平假日客單價對比">客單價比較</canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header"><h3>各分店平假日詳細比較</h3></div>
+      <table>
+        <thead><tr>
+          <th style="width:18%">分店</th>
+          <th style="width:15%">平日營業額</th>
+          <th style="width:15%">假日營業額</th>
+          <th style="width:12%">平日來客</th>
+          <th style="width:12%">假日來客</th>
+          <th style="width:12%">平日客單價</th>
+          <th style="width:12%">假日客單價</th>
+          <th style="width:4%">差異</th>
+        </tr></thead>
+        <tbody>
+          ${allStores.map(s => {
+            const w = wdByStore[s], h = hdByStore[s];
+            const dn = (w||h).displayName;
+            const wR = w?.rev||0, hR = h?.rev||0;
+            const wG = w?.guests||0, hG = h?.guests||0;
+            const wAp = w?.avgPays||[], hAp = h?.avgPays||[];
+            const wAv = wAp.length ? wAp.reduce((a,b)=>a+b,0)/wAp.length : 0;
+            const hAv = hAp.length ? hAp.reduce((a,b)=>a+b,0)/hAp.length : 0;
+            const diff = hAv > 0 ? ((hAv-wAv)/wAv*100) : null;
+            const badge = diff === null ? '-'
+              : diff >= 5  ? '<span class="badge badge-good">假日↑</span>'
+              : diff <= -5 ? '<span class="badge badge-danger">假日↓</span>'
+              : '<span class="badge badge-warn">相近</span>';
+            return `<tr>
+              <td class="store-name-cell">${dn}</td>
+              <td>$${fmt(wR)}</td><td>$${fmt(hR)}</td>
+              <td>${fmt(wG)}</td><td>${fmt(hG)}</td>
+              <td>$${fmt(wAv)}</td><td>$${fmt(hAv)}</td>
+              <td>${badge}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  const labels = allStores.map(s => (wdByStore[s]||hdByStore[s]).displayName);
+  wdState.charts.push(new Chart(document.getElementById('wdRevChart'), {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: '平日日均', data: allStores.map(s => (wdByStore[s]?.rev||0)/(wdDays)), backgroundColor: BRAND, borderRadius:4 },
+      { label: '假日日均', data: allStores.map(s => (hdByStore[s]?.rev||0)/(hdDays)), backgroundColor: '#5c7a6e', borderRadius:4 },
+    ]},
+    options: { indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:'top', labels:{ boxWidth:12, font:{size:11} } } },
+      scales:{ x:{ ticks:{ callback: v=>'$'+fmt(v), font:{size:10} } }, y:{ ticks:{ font:{size:11} } } }
+    }
+  }));
+  wdState.charts.push(new Chart(document.getElementById('wdAvgChart'), {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: '平日客單價', data: allStores.map(s => { const ap=wdByStore[s]?.avgPays||[]; return ap.length?ap.reduce((a,b)=>a+b,0)/ap.length:0; }), backgroundColor: BRAND, borderRadius:4 },
+      { label: '假日客單價', data: allStores.map(s => { const ap=hdByStore[s]?.avgPays||[]; return ap.length?ap.reduce((a,b)=>a+b,0)/ap.length:0; }), backgroundColor: '#5c7a6e', borderRadius:4 },
+    ]},
+    options: { indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:'top', labels:{ boxWidth:12, font:{size:11} } } },
+      scales:{ x:{ ticks:{ callback: v=>'$'+fmt(v), font:{size:10} } }, y:{ ticks:{ font:{size:11} } } }
     }
   }));
 }
