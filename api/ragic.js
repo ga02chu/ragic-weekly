@@ -5,9 +5,8 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { path, limit = 1000, token } = req.query;
+  const { path, limit = 3000, token } = req.query;
 
-  // Use env var token first, fallback to query param
   const apiToken = process.env.RAGIC_TOKEN || token;
   const apiPath  = process.env.RAGIC_PATH  || path;
 
