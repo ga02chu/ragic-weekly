@@ -529,38 +529,16 @@ async function renderLogs(byStore) {
     <div class="logs-grid">${logsHtml}</div>
   `;
 
-  // Call Claude API for analysis
+  // Call Claude API via proxy for analysis
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{
-          role: 'user',
-          content: `你是一位餐飲顧問，請以老闆視角分析以下各分店值班主管日誌，用繁體中文輸出。
-
-${allLogsText}
-
-請用以下格式輸出（直接輸出，不要加 markdown 標題符號 #）：
-
-📊 本期總結
-（2-3句話概述本期整體狀況）
-
-⚠️ 需要關注的問題
-（按分類列出：客訴問題、食材問題、營運問題等，每點說明哪家店、什麼問題）
-
-✅ 值得肯定的表現
-（列出本期各店優良表現或值得繼續推行的事項）
-
-🎯 老闆建議行動
-（3-5點具體可執行的改善建議，針對問題提出解法）`
-        }]
-      })
+      body: JSON.stringify({ logs: allLogsText, dateFrom, dateTo })
     });
     const data = await response.json();
-    const text = data.content?.[0]?.text || '分析失敗，請稍後再試';
+    if (data.error) throw new Error(data.error);
+    const text = data.text || '分析失敗，請稍後再試';
 
     // Format output with line breaks
     const formatted = text
