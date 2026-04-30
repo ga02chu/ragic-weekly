@@ -754,14 +754,13 @@ async function handleFile(f,type){
       document.getElementById('adjui').textContent='✅';
       const names=[...new Set(ADJ.map(r=>r.name))];
       document.getElementById('adjul').textContent=`請假記錄：${ADJ.length}筆（${names.length}人）`;}
-    if(PAY&&ATT)renderM();}
     if(PAY&&ATT){renderW();renderM();}
   }catch(ex){showErr(type+'解析失敗：'+ex.message);}
   showLoad(false);
 }
-['pi','ai','li','adji','slipi'].forEach((id,i)=>{
+['pi','ai','li','adji'].forEach((id,i)=>{
   document.getElementById(id).addEventListener('change',e=>{
-    if(e.target.files[0])handleFile(e.target.files[0],['p','a','l','adj','slip'][i]);
+    if(e.target.files[0])handleFile(e.target.files[0],['p','a','l','adj'][i]);
   });
 });
 
