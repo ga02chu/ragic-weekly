@@ -175,7 +175,18 @@ tfoot tr{background:#f9fafb;border-top:2px solid #e5e7eb;font-weight:700}
   </div>
 </div>
 
-<script src="./hrCalc.js"></script>
+<script>
+// Load hrCalc.js, strip export block, inject as global script
+fetch('./hrCalc.js').then(r=>r.text()).then(src=>{
+  // Remove the export { ... } block at the end
+  src = src.replace(/\/\/ ── Exports[\s\S]*$/, '');
+  const s = document.createElement('script');
+  s.textContent = src;
+  document.head.appendChild(s);
+  // Init page after hrCalc is loaded
+  window._hrReady = true;
+}).catch(e => { document.getElementById('err2').textContent='hrCalc.js 載入失敗：'+e.message; document.getElementById('err2').style.display='block'; });
+</script>
 <script>
 // All UI uses id with "2" suffix to avoid conflicts with hrCalc.js stubs
 let _PAY=null,_ATT=null,_LOC=null,_ADJ=[];
@@ -224,6 +235,7 @@ function drp(e,type){
 }
 
 async function hf(file,type){
+  if(!window._hrReady){showErr2('hrCalc.js 尚未載入，請稍後再試');return;}
   if(!file)return;
   document.getElementById('loading2').style.display='block';
   document.getElementById('err2').style.display='none';
