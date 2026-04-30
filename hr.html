@@ -153,6 +153,15 @@ tfoot tr{background:#f9fafb;border-top:2px solid #e5e7eb;font-weight:700}
           <option value="外場">外場</option>
         </select>
       </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="ctrl-label">應執勤時數</span>
+        <input type="number" id="stdH2" min="1" max="300" value="168" style="width:65px"/>
+        <span class="dim">H</span>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#374151;cursor:pointer">
+        <input type="checkbox" id="exMgmt" style="cursor:pointer"/>
+        排除總部/執行長
+      </label>
       <button class="calc-btn" id="calcBtn2" onclick="doCalc()" disabled>🔢 計算</button>
     </div>
   </div>
@@ -184,7 +193,7 @@ fetch('./hrCalc.js').then(r=>r.text()).then(src=>{
   s.textContent = src;
   document.head.appendChild(s);
   // Init page after hrCalc is loaded
-  window.OVR={};window.SLIP={};window._hrReady = true;
+  window._hrReady = true;
 }).catch(e => { document.getElementById('err2').textContent='hrCalc.js 載入失敗：'+e.message; document.getElementById('err2').style.display='block'; });
 </script>
 <script>
@@ -286,13 +295,23 @@ function doCalc(){
       const ed=+document.getElementById('ed2').value;
       const sf=document.getElementById('sf2').value;
       const lf=document.getElementById('lf2').value;
+      const excludeMgmt=document.getElementById('exMgmt').checked;
+      // Global standard hours override
+      const stdHInput=+document.getElementById('stdH2').value;
+      const stdH=stdHInput>0?stdHInput:168;
+      // Set global OVR from per-person inputs
+      OVR={};
+      document.querySelectorAll('.ovr-input').forEach(inp=>{
+        const v=parseFloat(inp.value);
+        if(!isNaN(v)&&v>0) OVR[inp.dataset.id]=v;
+      });
       const mDays=new Date(y,m,0).getDate();
       const sDate=new Date(y,m-1,sd);
       const eDate=new Date(y,m-1,ed);eDate.setHours(23,59,59);
       const totalDays=Math.floor((eDate-sDate)/86400000)+1;
       const pf=totalDays/mDays;
       const adjMap=adjDeltaForMonth(_ADJ,y,m);
-      const res=calcResults(sDate,eDate,sf||null,168,pf,adjMap,false,lf);
+      const res=calcResults(sDate,eDate,sf||null,stdH,pf,adjMap,excludeMgmt,lf);
       lastRes={...res,pf};
       renderRes(lastRes);
     }catch(ex){showErr2('計算失敗：'+ex.message);}
@@ -333,10 +352,15 @@ function renderTable(res){
     if(curTab==='時薪工讀')return e.type==='時薪工讀';
     return true;
   });
+  // Table headers - no 加扣項, add 時薪 for PT
+  const showPT = curTab==='時薪工讀' || curTab==='全部';
   document.getElementById('th2').innerHTML=`<tr>
     <th>工號</th><th>姓名</th><th>門市</th><th>類型</th>
+    ${showPT?'<th class="r">時薪</th>':''}
     <th class="r">工時</th><th class="r">期間薪資</th><th class="r">加班費</th>
-    <th class="r">加扣項</th><th class="r">期間保費</th><th class="r">期間成本</th></tr>`;
+    <th class="r">期間保費</th><th class="r">期間成本</th>
+    <th class="r" style="color:#9ca3af;font-size:10px">覆蓋工時</th></tr>`;
+
   document.getElementById('tb2').innerHTML=all.map(e=>{
     const ft=e.type==='月薪正職';
     const sal=ft?Math.round(e.propSal):Math.round(e.gross||0);
@@ -344,36 +368,42 @@ function renderTable(res){
     const ins=Math.round(e.propIns||0);
     const cost=sal+(ft?ot:0)+ins;
     const hasRec=!ft&&(e.totalH||0)>0;
+    const hrRate=!ft&&e.hourlyRate?`$${e.hourlyRate}`:'–';
+    const ovrVal=OVR[e.id]||'';
     return `<tr>
       <td class="dim" style="font-size:11px">${e.id}</td>
       <td style="font-weight:600">${e.name}</td>
       <td class="dim">${e.dept||'–'}</td>
       <td><span class="badge ${ft?'bft':'bpt'}">${e.type}</span>${e.loc?`<span class="dim" style="margin-left:4px;font-size:10px">${e.loc}</span>`:''}</td>
+      ${showPT?`<td class="r" style="color:#7c3aed;font-size:12px">${hrRate}</td>`:''}
       <td class="r">${!ft&&!hasRec?'<span class="nr">無記錄</span>':fH(e.totalH||0)}</td>
       <td class="r" style="color:#f59e0b;font-weight:600">${e.noPunch&&ft?'<span class="nr">–</span>':(!ft&&!hasRec?'<span class="nr">無</span>':fT(sal))}</td>
       <td class="r" style="color:${ot>0?'#f97316':'#d1d5db'}">${ot>0?fT(ot):'–'}</td>
-      <td class="r">${e.extra&&e.extra!==0?`<span class="${e.extra>0?'pos':'neg'}">${e.extra>0?'+':''}${fT(e.extra)}</span>`:'<span class="nr">–</span>'}</td>
       <td class="r" style="color:#10b981">${fT(ins)}</td>
-      <td class="r" style="color:#6366f1;font-weight:700">${e.noPunch&&ft?'<span class="nr">–</span>':fT(cost)}</td></tr>`;
+      <td class="r" style="color:#6366f1;font-weight:700">${e.noPunch&&ft?'<span class="nr">–</span>':fT(cost)}</td>
+      <td class="r">${ft?`<input type="number" class="ovr-input" data-id="${e.id}" value="${ovrVal}" placeholder="預設" min="1" max="300" style="width:65px;font-size:11px;border:1px solid #e5e7eb;border-radius:4px;padding:2px 4px;text-align:right">`:'<span class="nr">–</span>'}</td>
+    </tr>`;
   }).join('');
+
   if(all.length>0){
-    const tot={sal:0,ot:0,ins:0,cost:0,extra:0};
+    const tot={sal:0,ot:0,ins:0,cost:0};
     all.forEach(e=>{
       const ft=e.type==='月薪正職';if(e.noPunch&&ft)return;
       const sal=ft?Math.round(e.propSal):Math.round(e.gross||0);
       const ot=ft?Math.round(e.weekOtPay||0):0;
       const ins=Math.round(e.propIns||0);
-      tot.sal+=sal;tot.ot+=ot;tot.ins+=ins;tot.cost+=sal+ot+ins;tot.extra+=(e.extra||0);
+      tot.sal+=sal;tot.ot+=ot;tot.ins+=ins;tot.cost+=sal+ot+ins;
     });
     document.getElementById('tf2').innerHTML=`<tr>
-      <td colspan="5" style="font-size:12px;color:#6b7280">合計 ${all.length} 人</td>
+      <td colspan="${showPT?5:4}" style="font-size:12px;color:#6b7280">合計 ${all.length} 人</td>
+      <td class="r"></td>
       <td class="r" style="color:#f59e0b">${fT(tot.sal)}</td>
       <td class="r" style="color:#f97316">${fT(tot.ot)}</td>
-      <td class="r" style="color:#6b7280">${fT(tot.extra)}</td>
       <td class="r" style="color:#10b981">${fT(tot.ins)}</td>
-      <td class="r" style="color:#6366f1">${fT(tot.cost)}</td></tr>`;
+      <td class="r" style="color:#6366f1">${fT(tot.cost)}</td>
+      <td></td></tr>`;
   }
 }
+
 </script>
 </body>
-</html>
