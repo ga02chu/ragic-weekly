@@ -184,7 +184,7 @@ fetch('./hrCalc.js').then(r=>r.text()).then(src=>{
   s.textContent = src;
   document.head.appendChild(s);
   // Init page after hrCalc is loaded
-  window._hrReady = true;
+  window.OVR={};window.SLIP={};window._hrReady = true;
 }).catch(e => { document.getElementById('err2').textContent='hrCalc.js 載入失敗：'+e.message; document.getElementById('err2').style.display='block'; });
 </script>
 <script>
