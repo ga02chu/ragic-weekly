@@ -1356,11 +1356,21 @@ function renderWtable(){
         ?`<span class="ov est">~${fN(Math.round(otAmt))}</span>`
         :`<span class="ov">${fT(otAmt)}</span>`)
       :'–';
+    // 時薪顯示：基本時薪，若有+10元加給用小字標示
+    const hrCell = e.type==='時薪工讀'
+      ? (e.rAddon>0
+          ? `$${e.hourlyRate}<br><small style="color:#1D9E75;font-size:9px">+${e.rAddon}元/hr加給</small>`
+          : `$${e.hourlyRate}`)
+      : `${Number(e.hr).toFixed(2)}H`;
     return`<tr>
       <td class="l" style="color:#888;font-size:10px">${e.id}</td>
       <td class="l" style="font-weight:600">${e.name}</td>
       <td class="l" style="color:#888;font-size:10px">${e.dept}</td>
-      <td class="l"><span class="badge ${e.type==='月薪正職'?'bft':'bpt'}">${e.type}</span>${e.loc?`<span style="font-size:9px;background:${e.loc==='內場'?'#E6F1FB':e.loc==='外場'?'#F0FBF0':e.loc==='兼職'?'#FFF3CD':'#F5F5F5'};color:${e.loc==='內場'?'#185FA5':e.loc==='外場'?'#3B6D11':e.loc==='兼職'?'#854F0B':'#666'};padding:1px 5px;border-radius:10px;margin-left:4px">${e.loc}</span>`:''} ${e.title?`<span style="font-size:9px;color:#aaa">${e.title}</span>`:''}</td>
+      <td class="l">
+        <span class="badge ${e.type==='月薪正職'?'bft':'bpt'}">${e.type}</span>
+        ${e.loc?`<span style="font-size:9px;background:${e.loc==='內場'?'#E6F1FB':e.loc==='外場'?'#F0FBF0':e.loc==='兼職'?'#FFF3CD':'#F5F5F5'};color:${e.loc==='內場'?'#185FA5':e.loc==='外場'?'#3B6D11':e.loc==='兼職'?'#854F0B':'#666'};padding:1px 5px;border-radius:10px;margin-left:4px">${e.loc}</span>`:''}
+      </td>
+      <td style="font-size:11px">${hrCell}</td>
       <td>${paceCell}</td>
       <td>${salCell}</td>
       <td class="${e.type==='月薪正職'&&e.weekOtH>0?'ov':''}">${otCell}</td>
@@ -1377,17 +1387,23 @@ function renderWtable(){
   // Correct period cost: FT uses propSal+weekOtPay+propIns; PT uses propSal+propIns (OT already in propSal)
   const tCost=disp.reduce((s,r)=>s+r.propSal+r.propIns+(r.type==='月薪正職'?r.weekOtPay:0),0);
 
-  tw.innerHTML=`<table>
+  tw.innerHTML=`<table style="table-layout:fixed">
+    <colgroup>
+      <col style="width:70px"><col style="width:70px"><col style="width:90px"><col style="width:120px">
+      <col style="width:60px"><col style="width:140px">
+      <col style="width:90px"><col style="width:80px"><col style="width:130px"><col style="width:80px">
+      <col style="width:80px"><col style="width:90px">
+    </colgroup>
     <thead><tr>
       <th class="l">工號</th><th class="l">姓名</th><th class="l">門市</th><th class="l">類型</th>
-      <th>工時比例（實際/應執勤）</th>
+      <th>時薪</th><th>工時比例（實際/應執勤）</th>
       <th>期間薪資</th><th>加班費</th><th>加給情況</th><th>加扣項</th>
       <th class="ins">期間保費</th><th>期間成本</th>
     </tr></thead>
     <tbody>${rows}</tbody>
     <tfoot class="wk"><tr>
       <td colspan="4" class="l">合計（${disp.length}人）</td>
-      <td>–</td>
+      <td>–</td><td>–</td>
       <td><span class="est">~${fN(Math.round(tSal))}</span></td>
       <td>~${fN(Math.round(tOT))}</td>
       <td>–</td>
