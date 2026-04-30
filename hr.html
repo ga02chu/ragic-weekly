@@ -1395,21 +1395,20 @@ function renderWtable(){
   // Correct period cost: FT uses propSal+weekOtPay+propIns; PT uses propSal+propIns (OT already in propSal)
   const tCost=disp.reduce((s,r)=>s+r.propSal+r.propIns+(r.type==='月薪正職'?r.weekOtPay:0),0);
 
-  tw.innerHTML=`<table style="table-layout:auto;width:100%">
+  tw.innerHTML=`<table style="table-layout:fixed;width:100%">
+    <colgroup>
+      <col style="width:68px"><col style="width:60px"><col style="width:80px"><col style="width:105px">
+      <col style="width:42px"><col style="width:135px">
+      <col style="width:78px"><col style="width:65px"><col style="width:145px">
+      <col style="width:78px"><col style="width:60px">
+      <col style="width:68px"><col style="width:80px">
+    </colgroup>
     <thead><tr>
-      <th class="l" style="width:70px">工號</th>
-      <th class="l" style="width:65px">姓名</th>
-      <th class="l" style="width:90px">門市</th>
-      <th class="l" style="width:110px">類型</th>
-      <th style="width:45px">時薪</th>
-      <th style="width:150px">工時（實際/應執勤）</th>
-      <th style="width:80px">基本工資</th>
-      <th style="width:70px">加班費</th>
-      <th style="width:130px">加給情況</th>
-      <th style="width:75px">應發薪資</th>
-      <th style="width:65px">加扣項</th>
-      <th class="ins" style="width:70px">期間保費</th>
-      <th style="width:85px">期間成本</th>
+      <th class="l">工號</th><th class="l">姓名</th><th class="l">門市</th><th class="l">類型</th>
+      <th>時薪</th><th>工時（實際/應執勤）</th>
+      <th>基本工資</th><th>加班費</th><th>加給情況</th>
+      <th>應發薪資</th><th>加扣項</th>
+      <th class="ins">期間保費</th><th>期間成本</th>
     </tr></thead>
     <tbody>${rows}</tbody>
     <tfoot class="wk"><tr>
