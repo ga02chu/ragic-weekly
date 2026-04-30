@@ -1325,8 +1325,15 @@ function renderWtable(){
     if(!isFT){
       const parts=[];
       if(e.totalH>=66){
-        if(isE){parts.push('<span style="color:#1D9E75;font-weight:600">達66H +$600</span>');bonusAmt+=e.b66||0;}
-        else parts.push(`<span style="color:#1D9E75;font-weight:600">達66H +10元/hr</span><br><small style="color:#aaa">有效時薪 $${fN(e.hr)}/hr</small>`);
+        if(isE){
+          bonusAmt+=e.b66||0;
+          parts.push(`<span style="color:#1D9E75;font-weight:600">達66H +$600</span>`);
+        } else {
+          // 料韓男：+10元/hr × 全部工時
+          const rAddonTotal = Math.round(e.totalH * (e.rAddon||0));
+          bonusAmt += rAddonTotal;
+          parts.push(`<span style="color:#1D9E75;font-weight:600">達66H +10元/hr</span><br><small style="color:#1D9E75">+$${fN(rAddonTotal)}（${fN(e.totalH,1)}H×$${e.rAddon||10}）</small>`);
+        }
       } else {
         parts.push(`<span class="dim">未達66H（${fN(e.totalH,1)}H）</span>`);
       }
