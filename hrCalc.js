@@ -554,6 +554,9 @@ function markDone(pre,name){
   document.getElementById(pre+'ul').textContent=name;
   document.getElementById(pre+'us').style.display='block';
 }
+function showLoad(v){document.getElementById('loading').style.display=v?'block':'none';}
+function showErr(m){const b=document.getElementById('err');b.textContent=m;b.style.display='block';}
+function hideErr(){document.getElementById('err').style.display='none';}
 
 async function handleFile(f,type){
   showLoad(true);hideErr();
@@ -860,3 +863,10 @@ function renderStoreSum(results,tw,isWeekly){
 }
 
 // ── Exports ─────────────────────────────────────────────────────────────────
+export {
+  parsePay, parseAtt, parseLoc, parseAdj,
+  calcResults, adjDeltaForMonth, effStd,
+  ptBonus, ptOTP, ftOT, ftOTbase, calcIns,
+  fT, fN, fH, pd, pMin, pMinFlex, rawH, parseAttDate,
+  R, FT_DIV
+};
