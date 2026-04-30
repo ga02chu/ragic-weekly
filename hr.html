@@ -363,13 +363,21 @@ function renderTable(res){
 
   document.getElementById('tb2').innerHTML=all.map(e=>{
     const ft=e.type==='月薪正職';
-    const sal=ft?Math.round(e.propSal):Math.round(e.gross||0);
-    const ot=ft?Math.round(e.weekOtPay||0):Math.round(e.ptDailyOt||0);
-    const ins=Math.round(e.propIns||0);
-    const cost=sal+(ft?ot:0)+ins;
-    const hasRec=!ft&&(e.totalH||0)>0;
-    const hrRate=!ft&&e.hourlyRate?`$${e.hourlyRate}`:'–';
-    const ovrVal=OVR[e.id]||'';
+    // PT: base = hours × rate only (no bonus, no OT)
+    // FT: proportional salary
+    const ptBase = !ft ? Math.round((e.totalH||0) * (e.hourlyRate||0)) : 0;
+    const ptBonus66 = !ft ? ((e.b66||0)+(e.bH||0)) : 0;
+    const sal = ft ? Math.round(e.propSal) : ptBase;
+    const ot = ft ? Math.round(e.weekOtPay||0) : Math.round(e.ptDailyOt||0);
+    const ins = Math.round(e.propIns||0);
+    // Cost: FT includes OT, PT does NOT include OT
+    const cost = ft ? (sal + ot + ins) : (sal + ins);
+    const hasRec = !ft && (e.totalH||0) > 0;
+    const hrRate = !ft && e.hourlyRate ? `$${e.hourlyRate}` : '–';
+    const ovrVal = OVR[e.id] || '';
+    // Special bonus label for PT
+    const bonusLabel = !ft && ptBonus66 > 0
+      ? `<div style="font-size:10px;color:#7c3aed;margin-top:2px">+${fT(ptBonus66)} 加給</div>` : '';
     return `<tr>
       <td class="dim" style="font-size:11px">${e.id}</td>
       <td style="font-weight:600">${e.name}</td>
@@ -377,7 +385,7 @@ function renderTable(res){
       <td><span class="badge ${ft?'bft':'bpt'}">${e.type}</span>${e.loc?`<span class="dim" style="margin-left:4px;font-size:10px">${e.loc}</span>`:''}</td>
       ${showPT?`<td class="r" style="color:#7c3aed;font-size:12px">${hrRate}</td>`:''}
       <td class="r">${!ft&&!hasRec?'<span class="nr">無記錄</span>':fH(e.totalH||0)}</td>
-      <td class="r" style="color:#f59e0b;font-weight:600">${e.noPunch&&ft?'<span class="nr">–</span>':(!ft&&!hasRec?'<span class="nr">無</span>':fT(sal))}</td>
+      <td class="r" style="color:#f59e0b;font-weight:600">${e.noPunch&&ft?'<span class="nr">–</span>':(!ft&&!hasRec?'<span class="nr">無</span>':fT(sal))}${bonusLabel}</td>
       <td class="r" style="color:${ot>0?'#f97316':'#d1d5db'}">${ot>0?fT(ot):'–'}</td>
       <td class="r" style="color:#10b981">${fT(ins)}</td>
       <td class="r" style="color:#6366f1;font-weight:700">${e.noPunch&&ft?'<span class="nr">–</span>':fT(cost)}</td>
@@ -389,10 +397,11 @@ function renderTable(res){
     const tot={sal:0,ot:0,ins:0,cost:0};
     all.forEach(e=>{
       const ft=e.type==='月薪正職';if(e.noPunch&&ft)return;
-      const sal=ft?Math.round(e.propSal):Math.round(e.gross||0);
-      const ot=ft?Math.round(e.weekOtPay||0):0;
+      const sal=ft?Math.round(e.propSal):Math.round((e.totalH||0)*(e.hourlyRate||0));
+      const ot=ft?Math.round(e.weekOtPay||0):Math.round(e.ptDailyOt||0);
       const ins=Math.round(e.propIns||0);
-      tot.sal+=sal;tot.ot+=ot;tot.ins+=ins;tot.cost+=sal+ot+ins;
+      const cost=ft?(sal+ot+ins):(sal+ins);
+      tot.sal+=sal;tot.ot+=ot;tot.ins+=ins;tot.cost+=cost;
     });
     document.getElementById('tf2').innerHTML=`<tr>
       <td colspan="${showPT?5:4}" style="font-size:12px;color:#6b7280">合計 ${all.length} 人</td>
