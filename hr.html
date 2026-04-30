@@ -1319,65 +1319,66 @@ function renderWtable(){
 
   const rows=disp.map(e=>{
     const isE=e.dept==='英洙家';
-    const rDisp=e.type==='時薪工讀'?(e.rAddon>0?`<span class="gv">${e.hourlyRate}+${e.rAddon}</span>`:e.hourlyRate):Number(e.hr).toFixed(2);
-    // Q1: show actual+projected bonus for PT in period view
-    let bonusNote='–';
-    if(e.type==='時薪工讀'){
+    const isFT=e.type==='月薪正職';
+    // 加給情況
+    let bonusNote='–'; let bonusAmt=0;
+    if(!isFT){
       const parts=[];
       if(e.totalH>=66){
-        if(isE) parts.push('<span style="color:#1D9E75;font-weight:600">達66H +$600</span>');
+        if(isE){parts.push('<span style="color:#1D9E75;font-weight:600">達66H +$600</span>');bonusAmt+=e.b66||0;}
         else parts.push(`<span style="color:#1D9E75;font-weight:600">達66H +10元/hr</span><br><small style="color:#aaa">有效時薪 $${fN(e.hr)}/hr</small>`);
       } else {
         parts.push(`<span class="dim">未達66H（${fN(e.totalH,1)}H）</span>`);
       }
-      if(e.bH>0)parts.push(`<span style="color:#6366f1">≥100H +$1,000</span>`);
+      if(e.bH>0){parts.push(`<span style="color:#6366f1">≥100H +$1,000</span>`);bonusAmt+=e.bH||0;}
       else if(e.projBH>0)parts.push(`<span class="est">~預估達100H</span>`);
       bonusNote=parts.join('<br>');
+      if(bonusAmt>0) bonusNote+=`<br><b style="color:#333">小計 +${fN(bonusAmt)}</b>`;
     }
-    // PT: no records = show '–' like FT; FT no records = show estimated
-    const hasPTRecords=e.type!=='月薪正職'&&(e.totalH||0)>0;
-    const salCell=e.noPunch?'<span class="dim">–</span>':
-      e.type==='月薪正職'?`<span class="est">~${fN(Math.round(e.propSal))}</span>`:
-      hasPTRecords?fT(e.gross||0):'<span class="dim">無記錄</span>';
-    // 工時比例：正職顯示本週實際/應執勤比例；工讀顯示本週工時
+    const hasPTRecords=!isFT&&(e.totalH||0)>0;
+    // 工時比例
     let paceCell='–';
-    if(e.type==='月薪正職'&&e.weekStd>0){
+    if(isFT&&e.weekStd>0){
       const pct=Math.round(e.pace*100);
       if(e.pace>1.0)paceCell=`<span class="pace pace-ot">${fH(e.totalH)} / ${fH(e.weekStd)} ↑${pct}%</span>`;
       else if(e.pace>=0.9)paceCell=`<span class="pace pace-ok">${fH(e.totalH)} / ${fH(e.weekStd)} ${pct}%</span>`;
       else paceCell=`<span class="pace pace-low">${fH(e.totalH)} / ${fH(e.weekStd)} ↓${pct}%</span>`;
-    } else if(e.type==='時薪工讀'){
+    } else if(!isFT){
       paceCell=e.noPunch?'<span class="dim">無紀錄</span>':`<span style="font-size:11px">${fH(e.totalH)}</span>`;
     }
-    // 加班費：正職為本週超時估算；工讀為本週實際 OT premium
-    const otAmt=e.type==='月薪正職'?e.weekOtPay:(e.otPay||0);
+    // 時薪欄（原始時薪，不含加給）
+    const hrCell = !isFT ? `$${e.hourlyRate}` : '–';
+    // 基本工資欄（原始時薪 × 工時，不含加給不含OT）
+    const basePayAmt = !isFT && hasPTRecords ? Math.round(e.totalH * e.hourlyRate) : null;
+    const basePayCell = isFT
+      ? `<span class="est">~${fN(Math.round(e.propSal))}</span>`
+      : (hasPTRecords ? fT(basePayAmt) : '<span class="dim">無記錄</span>');
+    // 加班費
+    const otAmt=isFT?e.weekOtPay:(e.otPay||0);
     const otCell=otAmt>0
-      ?(e.type==='月薪正職'
-        ?`<span class="ov est">~${fN(Math.round(otAmt))}</span>`
-        :`<span class="ov">${fT(otAmt)}</span>`)
+      ?(isFT?`<span class="ov est">~${fN(Math.round(otAmt))}</span>`:`<span class="ov">${fT(otAmt)}</span>`)
       :'–';
-    // 時薪顯示：基本時薪，若有+10元加給用小字標示
-    const hrCell = e.type==='時薪工讀'
-      ? (e.rAddon>0
-          ? `$${e.hourlyRate}<br><small style="color:#1D9E75;font-size:9px">+${e.rAddon}元/hr加給</small>`
-          : `$${e.hourlyRate}`)
-      : `${Number(e.hr).toFixed(2)}H`;
+    // 期間薪資（含加給，工讀 = gross；正職 = propSal）
+    const salCell = isFT
+      ? `<span class="est">~${fN(Math.round(e.propSal))}</span>`
+      : (hasPTRecords ? fT(e.gross||0) : '<span class="dim">無記錄</span>');
     return`<tr>
       <td class="l" style="color:#888;font-size:10px">${e.id}</td>
       <td class="l" style="font-weight:600">${e.name}</td>
       <td class="l" style="color:#888;font-size:10px">${e.dept}</td>
       <td class="l">
-        <span class="badge ${e.type==='月薪正職'?'bft':'bpt'}">${e.type}</span>
+        <span class="badge ${isFT?'bft':'bpt'}">${e.type}</span>
         ${e.loc?`<span style="font-size:9px;background:${e.loc==='內場'?'#E6F1FB':e.loc==='外場'?'#F0FBF0':e.loc==='兼職'?'#FFF3CD':'#F5F5F5'};color:${e.loc==='內場'?'#185FA5':e.loc==='外場'?'#3B6D11':e.loc==='兼職'?'#854F0B':'#666'};padding:1px 5px;border-radius:10px;margin-left:4px">${e.loc}</span>`:''}
       </td>
       <td style="font-size:11px">${hrCell}</td>
       <td>${paceCell}</td>
-      <td>${salCell}</td>
-      <td class="${e.type==='月薪正職'&&e.weekOtH>0?'ov':''}">${otCell}</td>
+      <td>${basePayCell}</td>
+      <td class="${isFT&&e.weekOtH>0?'ov':''}">${otCell}</td>
       <td style="font-size:10px;color:#888">${bonusNote}</td>
+      <td style="font-size:11px;font-weight:600">${!isFT&&hasPTRecords?fT(e.gross||0):(isFT?`<span class="est">~${fN(Math.round(e.propSal))}</span>`:'–')}</td>
       <td style="font-size:10px">${e.extra?`<span style="color:${e.extra>0?'#1D9E75':'#C0392B'};font-weight:600">${e.extra>0?'+':''}${fN(e.extra)}</span>${e.extraDetail?'<br><span style="color:#aaa">'+e.extraDetail.map(d=>d.desc).join('・')+'</span>':''}`:'-'}</td>
-      <td class="ins"><span class="${e.type==='月薪正職'?'est':''}">~${fN(Math.round(e.propIns))}</span></td>
-      <td style="font-weight:600;color:#633806"><span class="est">~${fN(Math.round(e.propSal+e.propIns+(e.type==='月薪正職'?e.weekOtPay:0)))}</span></td>
+      <td class="ins"><span class="${isFT?'est':''}">~${fN(Math.round(e.propIns))}</span></td>
+      <td style="font-weight:600;color:#633806"><span class="est">~${fN(Math.round(e.propSal+e.propIns+(isFT?e.weekOtPay:0)))}</span></td>
     </tr>`;
   }).join('');
 
@@ -1387,18 +1388,21 @@ function renderWtable(){
   // Correct period cost: FT uses propSal+weekOtPay+propIns; PT uses propSal+propIns (OT already in propSal)
   const tCost=disp.reduce((s,r)=>s+r.propSal+r.propIns+(r.type==='月薪正職'?r.weekOtPay:0),0);
 
-  tw.innerHTML=`<table style="table-layout:fixed">
-    <colgroup>
-      <col style="width:70px"><col style="width:70px"><col style="width:90px"><col style="width:120px">
-      <col style="width:60px"><col style="width:140px">
-      <col style="width:90px"><col style="width:80px"><col style="width:130px"><col style="width:80px">
-      <col style="width:80px"><col style="width:90px">
-    </colgroup>
+  tw.innerHTML=`<table style="table-layout:auto;width:100%">
     <thead><tr>
-      <th class="l">工號</th><th class="l">姓名</th><th class="l">門市</th><th class="l">類型</th>
-      <th>時薪</th><th>工時比例（實際/應執勤）</th>
-      <th>期間薪資</th><th>加班費</th><th>加給情況</th><th>加扣項</th>
-      <th class="ins">期間保費</th><th>期間成本</th>
+      <th class="l" style="width:70px">工號</th>
+      <th class="l" style="width:65px">姓名</th>
+      <th class="l" style="width:90px">門市</th>
+      <th class="l" style="width:110px">類型</th>
+      <th style="width:45px">時薪</th>
+      <th style="width:150px">工時（實際/應執勤）</th>
+      <th style="width:80px">基本工資</th>
+      <th style="width:70px">加班費</th>
+      <th style="width:130px">加給情況</th>
+      <th style="width:75px">應發薪資</th>
+      <th style="width:65px">加扣項</th>
+      <th class="ins" style="width:70px">期間保費</th>
+      <th style="width:85px">期間成本</th>
     </tr></thead>
     <tbody>${rows}</tbody>
     <tfoot class="wk"><tr>
@@ -1407,6 +1411,7 @@ function renderWtable(){
       <td><span class="est">~${fN(Math.round(tSal))}</span></td>
       <td>~${fN(Math.round(tOT))}</td>
       <td>–</td>
+      <td>~${fN(Math.round(tSal))}</td>
       <td style="font-size:10px">${fN(disp.reduce((s,r)=>s+(r.extra||0),0))}</td>
       <td class="ins">~${fN(Math.round(tIns))}</td>
       <td>~${fN(Math.round(tCost))}</td>
