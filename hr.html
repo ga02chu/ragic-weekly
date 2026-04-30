@@ -51,13 +51,36 @@ tbody tr:nth-child(even){background:#fafafa}
 td{padding:8px 12px;vertical-align:middle}
 tfoot tr{background:#f9fafb;border-top:2px solid #e5e7eb;font-weight:700}
 .badge{padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600}
-.ft{background:#dbeafe;color:#1d4ed8}
-.pt{background:#d1fae5;color:#065f46}
+.bft{background:#dbeafe;color:#1d4ed8}
+.bpt{background:#d1fae5;color:#065f46}
 .dim{color:#9ca3af}
 .nr{color:#d1d5db}
 .pos{color:#10b981;font-weight:600}
 .neg{color:#ef4444;font-weight:600}
 </style>
+
+<!-- Stub DOM elements that hrCalc.js expects, hidden -->
+<div style="display:none">
+  <div id="loading"></div>
+  <div id="err"></div>
+  <input id="pi" type="file"/>
+  <input id="ai" type="file"/>
+  <input id="li" type="file"/>
+  <input id="adji" type="file"/>
+  <input id="slipi" type="file"/>
+  <div id="pz"></div><div id="pui"></div><div id="pul"></div>
+  <div id="az"></div><div id="aui"></div><div id="aul"></div>
+  <div id="lz"></div><div id="lui"></div><div id="lul"></div>
+  <div id="adjz"></div><div id="adjui"></div><div id="adjul"></div>
+  <div id="slipz"></div><div id="slipui"></div><div id="slipul"></div>
+  <div id="slipus"></div>
+  <select id="wsf"></select><select id="msf"></select>
+  <input id="ws" type="text"/><input id="we" type="text"/>
+  <input id="ms" type="text"/><input id="me" type="text"/>
+  <div id="vw"></div><div id="vm"></div>
+  <div id="nav-w"></div><div id="nav-m"></div>
+</div>
+
 </head>
 <body>
 <div class="topbar">
@@ -69,29 +92,29 @@ tfoot tr{background:#f9fafb;border-top:2px solid #e5e7eb;font-weight:700}
   <div class="card">
     <div class="card-title">上傳資料</div>
     <div class="upload-grid">
-      <div class="upload-zone" id="pz" onclick="document.getElementById('pi').click()" ondragover="dov(event,'pz')" ondragleave="dlv('pz')" ondrop="drp(event,'p')">
-        <input type="file" id="pi" accept=".xlsx,.xls" style="display:none" onchange="hf(this.files[0],'p')"/>
-        <div class="upload-icon" id="pui">📋</div>
+      <div class="upload-zone" id="pz2" onclick="document.getElementById('pi2').click()" ondragover="dov(event,'pz2')" ondragleave="dlv('pz2')" ondrop="drp(event,'p')">
+        <input type="file" id="pi2" accept=".xlsx,.xls" style="display:none" onchange="hf(this.files[0],'p')"/>
+        <div class="upload-icon" id="pui2">📋</div>
         <div class="upload-label">薪資保險資料 *</div>
-        <div class="upload-sub" id="pul">拖曳或點擊上傳 .xlsx</div>
+        <div class="upload-sub" id="pul2">拖曳或點擊上傳 .xlsx</div>
       </div>
-      <div class="upload-zone" id="az" onclick="document.getElementById('ai').click()" ondragover="dov(event,'az')" ondragleave="dlv('az')" ondrop="drp(event,'a')">
-        <input type="file" id="ai" accept=".xlsx,.xls" style="display:none" onchange="hf(this.files[0],'a')"/>
-        <div class="upload-icon" id="aui">⏱</div>
+      <div class="upload-zone" id="az2" onclick="document.getElementById('ai2').click()" ondragover="dov(event,'az2')" ondragleave="dlv('az2')" ondrop="drp(event,'a')">
+        <input type="file" id="ai2" accept=".xlsx,.xls" style="display:none" onchange="hf(this.files[0],'a')"/>
+        <div class="upload-icon" id="aui2">⏱</div>
         <div class="upload-label">Apollo 出勤記錄 *</div>
-        <div class="upload-sub" id="aul">拖曳或點擊上傳 .xlsx</div>
+        <div class="upload-sub" id="aul2">拖曳或點擊上傳 .xlsx</div>
       </div>
-      <div class="upload-zone" id="lz" onclick="document.getElementById('li').click()" ondragover="dov(event,'lz')" ondragleave="dlv('lz')" ondrop="drp(event,'l')">
-        <input type="file" id="li" accept=".xlsx,.xls" style="display:none" onchange="hf(this.files[0],'l')"/>
-        <div class="upload-icon" id="lui">📍</div>
+      <div class="upload-zone" id="lz2" onclick="document.getElementById('li2').click()" ondragover="dov(event,'lz2')" ondragleave="dlv('lz2')" ondrop="drp(event,'l')">
+        <input type="file" id="li2" accept=".xlsx,.xls" style="display:none" onchange="hf(this.files[0],'l')"/>
+        <div class="upload-icon" id="lui2">📍</div>
         <div class="upload-label">打卡地點紀錄</div>
-        <div class="upload-sub" id="lul">選填</div>
+        <div class="upload-sub" id="lul2">選填</div>
       </div>
-      <div class="upload-zone" id="adjz" onclick="document.getElementById('adji').click()" ondragover="dov(event,'adjz')" ondragleave="dlv('adjz')" ondrop="drp(event,'adj')">
-        <input type="file" id="adji" accept=".xlsx,.xls" style="display:none" onchange="hf(this.files[0],'adj')"/>
-        <div class="upload-icon" id="adjui">📝</div>
+      <div class="upload-zone" id="adjz2" onclick="document.getElementById('adji2').click()" ondragover="dov(event,'adjz2')" ondragleave="dlv('adjz2')" ondrop="drp(event,'adj')">
+        <input type="file" id="adji2" accept=".xlsx,.xls" style="display:none" onchange="hf(this.files[0],'adj')"/>
+        <div class="upload-icon" id="adjui2">📝</div>
         <div class="upload-label">人事調整記錄</div>
-        <div class="upload-sub" id="adjul">選填・新進/離職/請假</div>
+        <div class="upload-sub" id="adjul2">選填・新進/離職/請假</div>
       </div>
     </div>
   </div>
@@ -101,14 +124,14 @@ tfoot tr{background:#f9fafb;border-top:2px solid #e5e7eb;font-weight:700}
     <div class="controls">
       <div style="display:flex;align-items:center;gap:8px">
         <span class="ctrl-label">年月</span>
-        <select id="yr"></select>
-        <select id="mo"></select>
+        <select id="yr2"></select>
+        <select id="mo2"></select>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <span class="ctrl-label">期間</span>
-        <input type="number" id="sd" min="1" max="31" value="1"/>
+        <input type="number" id="sd2" min="1" max="31" value="1"/>
         <span class="dim">—</span>
-        <input type="number" id="ed" min="1" max="31" value="31"/>
+        <input type="number" id="ed2" min="1" max="31" value="31"/>
         <span class="dim">日</span>
       </div>
       <div class="qbtns">
@@ -120,164 +143,137 @@ tfoot tr{background:#f9fafb;border-top:2px solid #e5e7eb;font-weight:700}
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <span class="ctrl-label">門市</span>
-        <select id="sf"><option value="">全部門市</option></select>
+        <select id="sf2"><option value="">全部門市</option></select>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <span class="ctrl-label">場別</span>
-        <select id="lf">
+        <select id="lf2">
           <option value="">全部</option>
           <option value="內場">內場</option>
           <option value="外場">外場</option>
         </select>
       </div>
-      <button class="calc-btn" id="calcBtn" onclick="calc()" disabled>🔢 計算</button>
+      <button class="calc-btn" id="calcBtn2" onclick="doCalc()" disabled>🔢 計算</button>
     </div>
   </div>
 
-  <div class="err" id="err"></div>
-  <div class="loading" id="loading">計算中...</div>
+  <div class="err" id="err2"></div>
+  <div class="loading" id="loading2">計算中...</div>
 
-  <div id="results" style="display:none">
-    <div class="metrics" id="met"></div>
+  <div id="results2" style="display:none">
+    <div class="metrics" id="met2"></div>
     <div class="card" style="padding:0;overflow:hidden">
-      <div class="tabs" id="tabs"></div>
+      <div class="tabs" id="tabs2"></div>
       <div class="tw">
         <table>
-          <thead id="th"></thead>
-          <tbody id="tb"></tbody>
-          <tfoot id="tf"></tfoot>
+          <thead id="th2"></thead>
+          <tbody id="tb2"></tbody>
+          <tfoot id="tf2"></tfoot>
         </table>
       </div>
     </div>
   </div>
 </div>
 
+<script src="./hrCalc.js"></script>
 <script>
-// Load hrCalc as non-module (shares global scope)
-// We need to strip the export statement first
-</script>
-<script id="hrScript"></script>
-<script>
-// State
+// All UI uses id with "2" suffix to avoid conflicts with hrCalc.js stubs
 let _PAY=null,_ATT=null,_LOC=null,_ADJ=[];
 let curTab='全部', lastRes=null;
 
-// Load hrCalc.js dynamically, strip export
-fetch('./hrCalc.js').then(r=>r.text()).then(src=>{
-  // Remove export statement
-  src = src.replace(/^export\s*\{[^}]*\};?\s*$/m,'');
-  // Remove DOM event listeners that reference elements not in our HTML
-  src = src.replace(/\['pi','ai','li','adji','slipi'\]\.forEach[\s\S]*?\}\);/m,'');
-  // Remove auto-render calls that reference missing DOM
-  src = src.replace(/if\(PAY&&ATT\)\{renderW\(\);renderM\(\);\}/g,'');
-  // Remove showLoad/showErr/hideErr DOM functions (we have our own)
-  src = src.replace(/function showLoad[^}]+\}/,'function showLoad(){}');
-  src = src.replace(/function showErr[^}]+\}/,'function showErr(){}');
-  src = src.replace(/function hideErr[^}]+\}/,'function hideErr(){}');
-  // Remove fillStores DOM function
-  src = src.replace(/function fillStores[\s\S]*?(?=function )/,'');
-  // Remove setWeek/setMonth/setMD auto-init
-  src = src.replace(/\(\(\)=>\{setWeek\(0\)[^}]+\}\)\(\);/,'');
-  src = src.replace(/\['ws','we'\]\.forEach[^;]+;/g,'');
-  src = src.replace(/\['ms','me'\]\.forEach[^;]+;/g,'');
-  const s=document.createElement('script');
-  s.textContent=src;
-  document.head.appendChild(s);
-  initPage();
-}).catch(e=>showErr('hrCalc.js 載入失敗：'+e.message));
-
-function initPage(){
-  // Init selectors
-  const now=new Date();
-  const yr=document.getElementById('yr');
-  const mo=document.getElementById('mo');
-  for(let y=now.getFullYear();y>=now.getFullYear()-3;y--){
-    const o=document.createElement('option');o.value=y;o.textContent=y+'年';
-    if(y===now.getFullYear())o.selected=true;yr.appendChild(o);
-  }
-  for(let m=1;m<=12;m++){
-    const o=document.createElement('option');o.value=m;o.textContent=m+'月';
-    if(m===now.getMonth()+1)o.selected=true;mo.appendChild(o);
-  }
-  updEnd();
-  yr.addEventListener('change',updEnd);
-  mo.addEventListener('change',updEnd);
+// Init year/month
+const now=new Date();
+const yr2=document.getElementById('yr2');
+const mo2=document.getElementById('mo2');
+for(let y=now.getFullYear();y>=now.getFullYear()-3;y--){
+  const o=document.createElement('option');o.value=y;o.textContent=y+'年';
+  if(y===now.getFullYear())o.selected=true;yr2.appendChild(o);
 }
+for(let m=1;m<=12;m++){
+  const o=document.createElement('option');o.value=m;o.textContent=m+'月';
+  if(m===now.getMonth()+1)o.selected=true;mo2.appendChild(o);
+}
+updEnd();
+yr2.addEventListener('change',updEnd);
+mo2.addEventListener('change',updEnd);
 
 function updEnd(){
-  const y=+document.getElementById('yr').value,m=+document.getElementById('mo').value;
+  const y=+yr2.value,m=+mo2.value;
   const last=new Date(y,m,0).getDate();
-  const ed=document.getElementById('ed');
-  ed.value=last;ed.max=last;
-  document.getElementById('sd').max=last;
+  document.getElementById('ed2').value=last;
 }
 
 function setQ(t,btn){
-  const y=+document.getElementById('yr').value,m=+document.getElementById('mo').value;
+  const y=+yr2.value,m=+mo2.value;
   const last=new Date(y,m,0).getDate();
   const map={month:[1,last],w1:[1,7],w2:[8,14],w3:[15,21],w4:[22,last]};
   const [s,e]=map[t]||[1,last];
-  document.getElementById('sd').value=s;
-  document.getElementById('ed').value=e;
+  document.getElementById('sd2').value=s;
+  document.getElementById('ed2').value=e;
   document.querySelectorAll('.qbtn').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
 }
 
 function dov(e,id){e.preventDefault();document.getElementById(id).classList.add('drag');}
 function dlv(id){document.getElementById(id).classList.remove('drag');}
-function drp(e,type){e.preventDefault();dlv({p:'pz',a:'az',l:'lz',adj:'adjz'}[type]);if(e.dataTransfer.files[0])hf(e.dataTransfer.files[0],type);}
+function drp(e,type){
+  e.preventDefault();
+  const map={p:'pz2',a:'az2',l:'lz2',adj:'adjz2'};
+  dlv(map[type]);
+  if(e.dataTransfer.files[0])hf(e.dataTransfer.files[0],type);
+}
 
 async function hf(file,type){
   if(!file)return;
-  document.getElementById('loading').style.display='block';
-  document.getElementById('err').style.display='none';
+  document.getElementById('loading2').style.display='block';
+  document.getElementById('err2').style.display='none';
   try{
     const buf=await new Promise((res,rej)=>{
       const fr=new FileReader();fr.onload=e=>res(e.target.result);fr.onerror=rej;fr.readAsArrayBuffer(file);
     });
     const wb=XLSX.read(buf,{type:'array',cellDates:true});
     if(type==='p'){
-      _PAY=parsePay(wb);PAY=_PAY;
-      mark('p','✅',file.name);
+      _PAY=parsePay(wb); PAY=_PAY;
+      mark2('p','✅',file.name);
     } else if(type==='a'){
-      _ATT=parseAtt(wb);ATT=_ATT;
+      _ATT=parseAtt(wb); ATT=_ATT;
       const label=`${_ATT.records.length}筆・${_ATT.isApollo?'Apollo工時':'打卡計算'}`;
-      mark('a','✅',label);
-      // Fill store selector
+      mark2('a','✅',label);
       const depts=[...new Set(_ATT.records.map(r=>r.dept).filter(Boolean))].sort();
-      const sf=document.getElementById('sf');
+      const sf=document.getElementById('sf2');
       sf.innerHTML='<option value="">全部門市</option>';
       depts.forEach(d=>{const o=document.createElement('option');o.value=d;o.textContent=d;sf.appendChild(o);});
     } else if(type==='l'){
-      _LOC=parseLoc(wb);LOC=_LOC;
-      mark('l','✅',file.name);
+      _LOC=parseLoc(wb); LOC=_LOC;
+      mark2('l','✅',file.name);
     } else if(type==='adj'){
-      _ADJ=parseAdj(wb);ADJ=_ADJ;
-      mark('adj','✅',`${_ADJ.length}筆調整記錄`);
+      _ADJ=parseAdj(wb); ADJ=_ADJ;
+      mark2('adj','✅',`${_ADJ.length}筆調整記錄`);
     }
-    document.getElementById('calcBtn').disabled=!(_PAY&&_ATT);
-  }catch(ex){showErr(type+'解析失敗：'+ex.message);}
-  document.getElementById('loading').style.display='none';
+    document.getElementById('calcBtn2').disabled=!(_PAY&&_ATT);
+  }catch(ex){showErr2(type+'解析失敗：'+ex.message);}
+  document.getElementById('loading2').style.display='none';
 }
 
-function mark(pre,icon,label){
-  document.getElementById(pre+'z').classList.add('done');
-  document.getElementById(pre+'ui').textContent=icon;
-  document.getElementById(pre+'ul').textContent=label;
+function mark2(pre,icon,label){
+  document.getElementById(pre+'z2').classList.add('done');
+  document.getElementById(pre+'ui2').textContent=icon;
+  document.getElementById(pre+'ul2').textContent=label;
 }
+function showErr2(m){const b=document.getElementById('err2');b.textContent='❌ '+m;b.style.display='block';}
 
-function showErr(m){const b=document.getElementById('err');b.textContent='❌ '+m;b.style.display='block';}
-
-function calc(){
-  if(!_PAY||!_ATT){showErr('請先上傳薪資保險資料和出勤記錄');return;}
-  document.getElementById('err').style.display='none';
-  document.getElementById('loading').style.display='block';
-  document.getElementById('results').style.display='none';
+function doCalc(){
+  if(!_PAY||!_ATT){showErr2('請先上傳薪資保險資料和出勤記錄');return;}
+  document.getElementById('err2').style.display='none';
+  document.getElementById('loading2').style.display='block';
+  document.getElementById('results2').style.display='none';
   setTimeout(()=>{
     try{
-      const y=+document.getElementById('yr').value,m=+document.getElementById('mo').value;
-      const sd=+document.getElementById('sd').value,ed=+document.getElementById('ed').value;
-      const sf=document.getElementById('sf').value,lf=document.getElementById('lf').value;
+      const y=+yr2.value,m=+mo2.value;
+      const sd=+document.getElementById('sd2').value;
+      const ed=+document.getElementById('ed2').value;
+      const sf=document.getElementById('sf2').value;
+      const lf=document.getElementById('lf2').value;
       const mDays=new Date(y,m,0).getDate();
       const sDate=new Date(y,m-1,sd);
       const eDate=new Date(y,m-1,ed);eDate.setHours(23,59,59);
@@ -285,10 +281,10 @@ function calc(){
       const pf=totalDays/mDays;
       const adjMap=adjDeltaForMonth(_ADJ,y,m);
       const res=calcResults(sDate,eDate,sf||null,168,pf,adjMap,false,lf);
-      lastRes={...res,pf,mDays,totalDays,sDate,eDate};
+      lastRes={...res,pf};
       renderRes(lastRes);
-    }catch(ex){showErr('計算失敗：'+ex.message);}
-    document.getElementById('loading').style.display='none';
+    }catch(ex){showErr2('計算失敗：'+ex.message);}
+    document.getElementById('loading2').style.display='none';
   },50);
 }
 
@@ -302,22 +298,20 @@ function renderRes(res){
   const ftCount=all.filter(r=>r.type==='月薪正職').length;
   const ptCount=all.filter(r=>r.type==='時薪工讀').length;
   const pct=Math.round(res.pf*100);
-
-  document.getElementById('met').innerHTML=`
+  document.getElementById('met2').innerHTML=`
     <div class="mc"><div class="ml">期間薪資（${pct}%）</div><div class="mv" style="color:#f59e0b">${fT(Math.round(propSal))}</div></div>
     <div class="mc"><div class="ml">期間加班費</div><div class="mv" style="color:#f97316">${fT(Math.round(ftOT+ptOT))}</div></div>
     <div class="mc"><div class="ml">期間保費</div><div class="mv" style="color:#10b981">${fT(Math.round(propIns))}</div></div>
     <div class="mc"><div class="ml">期間人事成本</div><div class="mv" style="color:#6366f1">${fT(Math.round(totalCost))}</div></div>
     <div class="mc"><div class="ml">正職人數</div><div class="mv">${ftCount}人</div></div>
     <div class="mc"><div class="ml">工讀人數</div><div class="mv">${ptCount}人</div></div>`;
-
-  const tabs=document.getElementById('tabs');tabs.innerHTML='';
+  const tabs=document.getElementById('tabs2');tabs.innerHTML='';
   ['全部','月薪正職','時薪工讀'].forEach(t=>{
     const b=document.createElement('button');b.className='tab'+(t===curTab?' on':'');
     b.textContent=t;b.onclick=()=>{curTab=t;renderTable(lastRes);};tabs.appendChild(b);
   });
   renderTable(res);
-  document.getElementById('results').style.display='block';
+  document.getElementById('results2').style.display='block';
 }
 
 function renderTable(res){
@@ -327,11 +321,11 @@ function renderTable(res){
     if(curTab==='時薪工讀')return e.type==='時薪工讀';
     return true;
   });
-  document.getElementById('th').innerHTML=`<tr>
+  document.getElementById('th2').innerHTML=`<tr>
     <th>工號</th><th>姓名</th><th>門市</th><th>類型</th>
     <th class="r">工時</th><th class="r">期間薪資</th><th class="r">加班費</th>
     <th class="r">加扣項</th><th class="r">期間保費</th><th class="r">期間成本</th></tr>`;
-  document.getElementById('tb').innerHTML=all.map((e,i)=>{
+  document.getElementById('tb2').innerHTML=all.map(e=>{
     const ft=e.type==='月薪正職';
     const sal=ft?Math.round(e.propSal):Math.round(e.gross||0);
     const ot=ft?Math.round(e.weekOtPay||0):Math.round(e.ptDailyOt||0);
@@ -342,7 +336,7 @@ function renderTable(res){
       <td class="dim" style="font-size:11px">${e.id}</td>
       <td style="font-weight:600">${e.name}</td>
       <td class="dim">${e.dept||'–'}</td>
-      <td><span class="badge ${ft?'ft':'pt'}">${e.type}</span>${e.loc?`<span class="dim" style="margin-left:4px;font-size:10px">${e.loc}</span>`:''}</td>
+      <td><span class="badge ${ft?'bft':'bpt'}">${e.type}</span>${e.loc?`<span class="dim" style="margin-left:4px;font-size:10px">${e.loc}</span>`:''}</td>
       <td class="r">${!ft&&!hasRec?'<span class="nr">無記錄</span>':fH(e.totalH||0)}</td>
       <td class="r" style="color:#f59e0b;font-weight:600">${e.noPunch&&ft?'<span class="nr">–</span>':(!ft&&!hasRec?'<span class="nr">無</span>':fT(sal))}</td>
       <td class="r" style="color:${ot>0?'#f97316':'#d1d5db'}">${ot>0?fT(ot):'–'}</td>
@@ -359,7 +353,7 @@ function renderTable(res){
       const ins=Math.round(e.propIns||0);
       tot.sal+=sal;tot.ot+=ot;tot.ins+=ins;tot.cost+=sal+ot+ins;tot.extra+=(e.extra||0);
     });
-    document.getElementById('tf').innerHTML=`<tr>
+    document.getElementById('tf2').innerHTML=`<tr>
       <td colspan="5" style="font-size:12px;color:#6b7280">合計 ${all.length} 人</td>
       <td class="r" style="color:#f59e0b">${fT(tot.sal)}</td>
       <td class="r" style="color:#f97316">${fT(tot.ot)}</td>
