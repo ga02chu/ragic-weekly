@@ -70,9 +70,20 @@ tfoot.wk td{background:#FFF8E1;color:#633806;border-top:1.5px solid #F4C775;}
 .hidden{display:none;}
 .ins{color:#1D9E75;}
 </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div class="wrap">
+<div id="sb-bar" style="display:none;background:#f0faf6;border:1px solid #b7e4cc;border-radius:8px;padding:8px 14px;margin-bottom:10px;font-size:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+  <span style="color:#1D9E75;font-weight:600">☁️ 雲端儲存已啟用</span>
+  <span id="sb-user" style="color:#555"></span>
+  <span style="margin-left:auto;display:flex;gap:8px">
+    <button class="pb" onclick="sbSaveAll()" style="background:#1D9E75;color:#fff;border-color:#1D9E75">☁️ 儲存到雲端</button>
+    <button class="pb" onclick="sbLoadAll()">☁️ 載入上次資料</button>
+    <button class="pb" onclick="sbLogout()" style="color:#999">登出</button>
+  </span>
+</div>
+
 
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
   <div>
@@ -1601,6 +1612,145 @@ function exportExcel(mode){
   a.href=url;a.download=`人事成本${isW?'週報':'月報'}_${today}.xlsx`;
   document.body.appendChild(a);a.click();
   setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+}
+</script>
+<script>
+// ── Supabase 初始化 ────────────────────────────────────────────────────────
+const SB_URL = 'https://pboqxswqhpubfmehukqy.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBib3F4c3dxaHB1YmZtZWh1a3F5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyMDU0MjMsImV4cCI6MjA5Mzc4MTQyM30.ZMONQRqZOyju55S6Asd-qYpc4MK5Ga7_agwlCzbgbWw';
+const _sb = supabase.createClient(SB_URL, SB_KEY);
+let _sbUser = null;
+
+// ── 初始化：檢查登入狀態 ──────────────────────────────────────────────────
+(async () => {
+  const { data: { session } } = await _sb.auth.getSession();
+  if (session) {
+    _sbUser = session.user;
+    document.getElementById('sb-bar').style.display = 'flex';
+    document.getElementById('sb-user').textContent = _sbUser.email;
+    // 自動載入上次資料
+    await sbLoadAll();
+  }
+})();
+
+// ── 登出 ─────────────────────────────────────────────────────────────────
+async function sbLogout() {
+  await _sb.auth.signOut();
+  _sbUser = null;
+  document.getElementById('sb-bar').style.display = 'none';
+  showToast('已登出雲端儲存');
+}
+
+function showToast(msg, ok=true) {
+  const t = document.createElement('div');
+  t.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:9999;background:${ok?'#1D9E75':'#C0392B'};color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.15)`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2800);
+}
+
+// ── 序列化目前資料 ─────────────────────────────────────────────────────────
+function serializePAY() {
+  if (!PAY) return null;
+  return JSON.stringify(PAY);
+}
+function serializeATT() {
+  if (!ATT) return null;
+  // records 中的 date 是 Date 物件，轉成 ISO string
+  const safe = {
+    ...ATT,
+    records: ATT.records.map(r => ({ ...r, date: r.date ? r.date.toISOString() : null }))
+  };
+  return JSON.stringify(safe);
+}
+function serializeLOC() {
+  if (!LOC) return null;
+  const safe = LOC.map(r => ({ ...r, date: r.date ? r.date.toISOString() : null }));
+  return JSON.stringify(safe);
+}
+function serializeADJ() {
+  if (!ADJ || !ADJ.length) return null;
+  const safe = ADJ.map(r => ({
+    ...r,
+    startDate: r.startDate ? r.startDate.toISOString() : null,
+    endDate: r.endDate ? r.endDate.toISOString() : null
+  }));
+  return JSON.stringify(safe);
+}
+
+// ── 還原資料 ──────────────────────────────────────────────────────────────
+function restorePAY(json) {
+  PAY = JSON.parse(json);
+  markDone('p', '☁️ 從雲端載入');
+}
+function restoreATT(json) {
+  const raw = JSON.parse(json);
+  raw.records = raw.records.map(r => ({ ...r, date: r.date ? new Date(r.date) : null }));
+  ATT = raw;
+  markDone('a', '☁️ 從雲端載入');
+  fillStores();
+}
+function restoreLOC(json) {
+  const raw = JSON.parse(json);
+  LOC = raw.map(r => ({ ...r, date: r.date ? new Date(r.date) : null }));
+  markDone('l', '☁️ 從雲端載入');
+}
+function restoreADJ(json) {
+  const raw = JSON.parse(json);
+  ADJ = raw.map(r => ({
+    ...r,
+    startDate: r.startDate ? new Date(r.startDate) : null,
+    endDate: r.endDate ? new Date(r.endDate) : null
+  }));
+  markDone('adj', `☁️ 從雲端載入（${ADJ.length}筆）`);
+}
+
+// ── 儲存全部到雲端 ────────────────────────────────────────────────────────
+async function sbSaveAll() {
+  if (!_sbUser) { showToast('請先登入', false); return; }
+  const email = _sbUser.email;
+  const items = [
+    { data_type: 'payroll',    json: serializePAY() },
+    { data_type: 'attendance', json: serializeATT() },
+    { data_type: 'location',   json: serializeLOC() },
+    { data_type: 'adjustment', json: serializeADJ() }
+  ].filter(i => i.json);
+
+  if (!items.length) { showToast('尚無資料可儲存', false); return; }
+
+  let saved = 0;
+  for (const item of items) {
+    const { error } = await _sb.from('hr_cache').upsert({
+      user_email: email,
+      data_type: item.data_type,
+      data_json: item.json,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_email,data_type' });
+    if (!error) saved++;
+  }
+  showToast(`✅ 已儲存 ${saved} 項資料到雲端`);
+}
+
+// ── 從雲端載入 ────────────────────────────────────────────────────────────
+async function sbLoadAll() {
+  if (!_sbUser) return;
+  const email = _sbUser.email;
+  const { data, error } = await _sb.from('hr_cache').select('*').eq('user_email', email);
+  if (error || !data || !data.length) return;
+
+  let loaded = 0;
+  for (const row of data) {
+    try {
+      if (row.data_type === 'payroll')    { restorePAY(row.data_json); loaded++; }
+      if (row.data_type === 'attendance') { restoreATT(row.data_json); loaded++; }
+      if (row.data_type === 'location')   { restoreLOC(row.data_json); loaded++; }
+      if (row.data_type === 'adjustment') { restoreADJ(row.data_json); loaded++; }
+    } catch(e) { console.warn('還原失敗', row.data_type, e); }
+  }
+  if (loaded > 0) {
+    showToast(`☁️ 已載入 ${loaded} 項雲端資料`);
+    if (PAY && ATT) { renderW(); renderM(); }
+  }
 }
 </script>
 </body>
