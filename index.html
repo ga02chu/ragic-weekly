@@ -382,16 +382,7 @@ tfoot.wk td{background:#FFF8E1;color:#633806;border-top:1.5px solid #F4C775;}
     </div>
     <div style="margin-top:10px">
       <button class="pb tmpl" onclick="downloadTemplate()">⬇ 下載人事調整記錄表範本</button>
-    <button class="pb" onclick="
-      const p=PAY&&PAY.find(e=>e.name==='黃廷曜');
-      if(!p){alert('找不到黃廷曜');return;}
-      const bMonth=p.birthday.getMonth();
-      const payMonth=(bMonth-1+12)%12;
-      const sDate=new Date(document.getElementById('ms').value);
-      const pMonth=sDate.getMonth();
-      const years=(sDate-p.hireDate)/(365.25*24*3600*1000);
-      alert('bMonth:'+bMonth+' payMonth:'+payMonth+' periodMonth:'+pMonth+' match:'+(payMonth===pMonth)+' years:'+years.toFixed(2));
-    " style="background:#854F0B;color:#fff">🔍 Debug 黃廷曜</button>
+    
     </div>
     <div id="loading" class="loading" style="display:none">解析中…</div>
     <div id="err" class="err-box" style="display:none"></div>
@@ -576,6 +567,7 @@ function calcIns(e, periodInfo){
 // 生日月份前一個月發放：到職1~2年 $1,000，2年以上 $2,000
 function calcBirthdayBonus(e, periodStart) {
   if (!e.birthday || !e.hireDate || e.type !== '月薪正職') return 0;
+  console.log('[birthday]', e.name, 'bMonth:', e.birthday.getMonth(), 'payMonth:', (e.birthday.getMonth()-1+12)%12, 'periodMonth:', periodStart.getMonth());
   // 發放月 = 生日月前一個月
   const bMonth = e.birthday.getMonth(); // 0-11
   const payMonth = (bMonth - 1 + 12) % 12; // 前一個月
