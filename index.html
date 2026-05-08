@@ -627,25 +627,28 @@ function parsePay(wb){
 // ── Time parsing helpers ──────────────────────────────────────────────────
 // Handles: string '16:53', Excel fraction 0.7034, Date object
 function parseTimeFrac(val){
-  if(val===null||val===undefined||val==='')return null;
-  // Excel time fraction (0-1 = 0:00-24:00)
-  if(typeof val==='number'&&val>=0&&val<1){
-    const total=Math.round(val*1440); return total; // minutes since midnight
-  }
-  // Date object (some XLSX versions return time as Date)
-  if(val instanceof Date&&!isNaN(val)){
-    return val.getHours()*60+val.getMinutes();
-  }
-  // String 'HH:MM' or 'HH:MM:SS'
-  const s=String(val).trim();
-  const m=s.match(/^(\d{1,2}):(\d{2})/);
-  if(m)return +m[1]*60+(+m[2]);
-  return null;
+  try{
+    if(val===null||val===undefined||val==='')return null;
+    // Excel time fraction (0-1 = 0:00-24:00)
+    if(typeof val==='number'&&val>=0&&val<1){
+      const total=Math.round(val*1440); return total;
+    }
+    // Date object
+    if(val instanceof Date&&!isNaN(val)){
+      return val.getHours()*60+val.getMinutes();
+    }
+    // String 'HH:MM' or 'HH:MM:SS'
+    const s=String(val).trim();
+    const m=s.match(/^(\d{1,2}):(\d{2})/);
+    if(m)return +m[1]*60+(+m[2]);
+    return null;
+  }catch(e){return null;}
 }
 function pMinFlex(val){return parseTimeFrac(val);}
 
 // Parse date cell: string, Date obj, or Excel serial
 function parseAttDate(val){
+  try{
   if(!val&&val!==0)return{str:'',date:null};
   if(val instanceof Date&&!isNaN(val)){
     const str=`${val.getFullYear()}/${String(val.getMonth()+1).padStart(2,'0')}/${String(val.getDate()).padStart(2,'0')}`;
@@ -660,6 +663,7 @@ function parseAttDate(val){
   }
   const s=String(val).trim();
   return{str:s,date:pd(s)};
+  }catch(e){return{str:'',date:null};}
 }
 
 // Fuzzy column finder: finds first col whose name includes the keyword
