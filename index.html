@@ -1354,7 +1354,10 @@ function setMonth(off){
 }
 function setMD(s,e){document.getElementById('ms').value=s;document.getElementById('me').value=e;renderM();}
 (()=>{setWeek(0);const t=new Date();document.getElementById('ms').value=fD(new Date(t.getFullYear(),t.getMonth(),1));document.getElementById('me').value=fD(new Date(t.getFullYear(),t.getMonth()+1,0));})();
-['ws','we'].forEach(id=>document.getElementById(id).addEventListener('change',renderW));
+['ws','we'].forEach(id=>{
+  const el=document.getElementById(id);
+  if(el){el.addEventListener('change',renderW);el.addEventListener('input',renderW);}
+});
 ['ms','me'].forEach(id=>document.getElementById(id).addEventListener('change',renderM));
 
 // ── Tabs helper ───────────────────────────────────────────────────────────
