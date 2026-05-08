@@ -400,6 +400,7 @@ tfoot.wk td{background:#FFF8E1;color:#633806;border-top:1.5px solid #F4C775;}
         <input type="number" id="wstd" value="168" min="1" max="300" step="1" oninput="renderW()">H
         <select id="wsf" onchange="renderW()"><option value="">全部門市</option></select>
         <select id="wloc" onchange="renderW()"><option value="">全部場別</option><option value="內場">內場</option><option value="外場">外場</option><option value="兼職">兼職</option><option value="總部">總部</option></select>
+        <button class="pb" onclick="renderW()" style="background:#185FA5;color:#fff;border-color:#185FA5">🔄 重新計算</button>
         <button class="pb export" onclick="exportExcel('w')">⬇ 匯出 Excel</button>
         <span class="pill" id="wp"></span>
       </div>
