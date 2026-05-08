@@ -1309,7 +1309,7 @@ async function handleFile(f,type){
       document.getElementById('adjui').textContent='✅';
       document.getElementById('adjul').textContent=`請假:${ADJ.filter(r=>!['加扣項目','前月不足'].includes(r.type)).length}筆 加扣:${Object.values(window._adjExtras||{}).flat().length}筆 遲到:${late}人`;
     }
-  }catch(ex){showErr(type+'解析失敗：'+ex.message);showLoad(false);return;}
+  }catch(ex){showErr(type+'解析失敗：'+ex.message+'\n'+ex.stack.split('\n').slice(0,3).join(' | '));showLoad(false);return;}
   showLoad(false);
   if(PAY&&ATT){try{renderW();}catch(e){console.warn('renderW error:',e.message);}}
 }
