@@ -1577,6 +1577,25 @@ function renderStoreLoc(results,locR,tw){
     </tr>`;
   }).join('');
 
+  // 建立詳細明細
+  const detailRows=[];
+  Object.entries(empStoreH).forEach(([eid,stores])=>{
+    const emp=results.find(e=>e.id===eid);
+    if(!emp)return;
+    Object.entries(stores).forEach(([store,h])=>{
+      if(h<0.01)return;
+      detailRows.push({id:eid,name:emp.name,store,hours:h});
+    });
+  });
+  detailRows.sort((a,b)=>a.store.localeCompare(b.store)||a.name.localeCompare(b.name));
+
+  const detailHtml=detailRows.map(r=>`<tr>
+    <td class="l" style="font-size:10px;color:#888">${r.id}</td>
+    <td class="l">${r.name}</td>
+    <td class="l">${r.store}</td>
+    <td>${r.hours.toFixed(2)}H</td>
+  </tr>`).join('');
+
   tw.innerHTML=`
     <div style="font-size:11px;color:#888;margin-bottom:8px">
       依 Apollo 實際工時＋打卡地點分攤。時數切割依休息打卡比例計算。
