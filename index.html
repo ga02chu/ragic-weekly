@@ -788,12 +788,12 @@ function parseBreak(wb){
   return rows.slice(hi+1).filter(r=>String(r[ci]||'').trim().startsWith('N')).map(r=>{
     const{str:dateStr,date}=parseAttDate(r[cd]);
     const stM=safeTime(r[cst]),etM=safeTime(r[cet]);
-    const{str:dateStr,date}=safeDateStr(r[cd]);
+    const brkDate=safeDateStr(r[cd]);
     const id=String(r[ci]||'').trim();
-    if(!id||!date)return null;
+    if(!id||!brkDate.date)return null;
     return{
       id,name:String(r[cn]||'').trim(),
-      dateStr,date,
+      dateStr:brkDate.str,date:brkDate.date,
       startTime:stM,endTime:etM,
       startLoc:String(r[csl]||'').trim()||'未知',
       endLoc:String(r[cel]||'').trim()||'未知'
