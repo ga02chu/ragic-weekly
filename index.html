@@ -567,12 +567,11 @@ function calcIns(e, periodInfo){
 function calcBirthdayBonus(e, periodStart) {
   if (!e.birthday || !e.hireDate || e.type !== '月薪正職') return 0;
   // 發放月 = 生日月前一個月
-  const bMonth = new Date(e.birthday).getMonth(); // 0-11
-  const payMonth = (bMonth - 1 + 12) % 12;        // 前一個月
+  const bMonth = e.birthday.getMonth(); // 0-11
+  const payMonth = (bMonth - 1 + 12) % 12; // 前一個月
   if (periodStart.getMonth() !== payMonth) return 0;
   // 計算年資
-  const hireDate = new Date(e.hireDate);
-  const years = (periodStart - hireDate) / (365.25 * 24 * 3600 * 1000);
+  const years = (periodStart - e.hireDate) / (365.25 * 24 * 3600 * 1000);
   if (years < 1) return 0;
   return years < 2 ? 1000 : 2000;
 }
@@ -641,9 +640,9 @@ function parsePay(wb){
     else if(['督導','行政助理','執行長','廚師長'].some(t=>title.includes(t))&&!title.includes('內場')&&!title.includes('外場'))titleLoc='總部';
     const nameStr=String(r[1]).trim();
     const isForeign=String(r[11]||'').trim().includes('外籍')||String(r[12]||'').trim().includes('外籍');
-    const hireDateStr=String(r[11]||'').trim();
-    const birthdayStr=String(r[12]||'').trim();
-    return{id:String(r[0]).trim(),name:nameStr,dept:String(r[2]).trim(),isForeign,hireDate:hireDateStr,birthday:birthdayStr,
+    const hireDate=parseLeaveDate(r[11]);
+    const birthday=parseLeaveDate(r[12]);
+    return{id:String(r[0]).trim(),name:nameStr,dept:String(r[2]).trim(),isForeign,hireDate,birthday,
       baseSalary:bs,mealAllow:meal,hourlyRate:hr,mgmtAllow:mgmt,housingAllow:housing,
       perfBonus:perf,annualBonus:annual,skillAllow:skill,title,titleLoc,
       fixedSalary:bs+meal+mgmt+housing+perf+annual+skill,
