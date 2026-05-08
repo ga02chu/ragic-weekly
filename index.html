@@ -2080,7 +2080,31 @@ async function sbLoadAll() {
   }
   if (loaded > 0) {
     showToast(`☁️ 已載入 ${loaded} 項雲端資料`);
-    setTimeout(() => { if (PAY && ATT) { renderW(); renderM(); } }, 300);
+    setTimeout(() => {
+      if (PAY && ATT) {
+        // 自動把日期設成出勤資料的月份
+        const dates = ATT.records.filter(r=>r.date).map(r=>r.date).sort((a,b)=>a-b);
+        if (dates.length) {
+          const first = dates[0];
+          const last = dates[dates.length-1];
+          const y = first.getFullYear();
+          const m = String(first.getMonth()+1).padStart(2,'0');
+          const lastDay = new Date(first.getFullYear(), first.getMonth()+1, 0).getDate();
+          // 週報
+          const ws = document.getElementById('ws');
+          const we = document.getElementById('we');
+          if (ws) ws.value = `${y}-${m}-01`;
+          if (we) we.value = `${y}-${m}-${String(lastDay).padStart(2,'0')}`;
+          // 月報
+          const ms = document.getElementById('ms');
+          const me = document.getElementById('me');
+          if (ms) ms.value = `${y}-${m}-01`;
+          if (me) me.value = `${y}-${m}-${String(lastDay).padStart(2,'0')}`;
+        }
+        renderW();
+        renderM();
+      }
+    }, 500);
   }
 }
 
