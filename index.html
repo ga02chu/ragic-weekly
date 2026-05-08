@@ -682,8 +682,9 @@ function parseAttDate(val){
     return{str,date:val};
   }
   if(typeof val==='number'){
-    // Excel serial date
-    const d=new Date(Math.round((val-25569)*86400000));
+    // Excel serial date（用本地時間避免時區差一天）
+    const utc=new Date(Math.round((val-25569)*86400000));
+    const d=new Date(utc.getUTCFullYear(),utc.getUTCMonth(),utc.getUTCDate());
     const str=`${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
     return{str,date:d};
   }
@@ -792,7 +793,8 @@ function parseLeaveDate(val){
   // Excel serial number → JS date
   if(typeof val==='number'){
     // Excel epoch is Jan 1 1900; JS epoch is Jan 1 1970
-    const d=new Date(Math.round((val-25569)*86400000));
+    const utc=new Date(Math.round((val-25569)*86400000));
+    const d=new Date(utc.getUTCFullYear(),utc.getUTCMonth(),utc.getUTCDate());
     return isNaN(d)?null:d;
   }
   return pd(String(val));
