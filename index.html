@@ -1323,7 +1323,9 @@ function fillStores(){
   if(!ATT)return;
   const depts=[...new Set(ATT.records.map(r=>r.dept).filter(Boolean))].sort();
   ['wsf','msf'].forEach(id=>{
-    const sel=document.getElementById(id),cur=sel.value;
+    const sel=document.getElementById(id);
+    if(!sel)return;
+    const cur=sel.value;
     sel.innerHTML='<option value="">全部門市</option>';
     depts.forEach(d=>{const o=document.createElement('option');o.value=d;o.textContent=d;if(d===cur)o.selected=true;sel.appendChild(o);});
   });
