@@ -1612,17 +1612,10 @@ function renderStoreLoc(results,locR,tw){
       <td>${grandH.toFixed(1)}H</td><td>100%</td>
       <td>–</td><td>–</td>
       <td style="font-weight:600">${fT(Math.round(grandC))}</td><td>100%</td>
-    </tr></tfoot></table>
-    <details style="margin-top:12px">
-      <summary style="cursor:pointer;font-size:12px;color:#185FA5;font-weight:600">📋 顯示個人明細</summary>
-      <table style="margin-top:8px">
-        <thead><tr><th class="l">工號</th><th class="l">姓名</th><th class="l">分店</th><th>工時</th></tr></thead>
-        <tbody>${detailHtml}</tbody>
-      </table>
-    </details>`;
+    </tr></tfoot></table>`;
+  tw.innerHTML += '<details style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;color:#185FA5;font-weight:600">📋 顯示個人明細</summary><table style="margin-top:8px"><thead><tr><th>工號</th><th>姓名</th><th>分店</th><th>工時</th></tr></thead><tbody>' + detailHtml + '</tbody></table></details>';
+}
 
-// ── Store summary table ───────────────────────────────────────────────────
-// isWeekly=true → use period-proportional values; false → use monthly actuals
 function renderStoreSum(results,tw,isWeekly){
   const stores={};
   results.forEach(e=>{
