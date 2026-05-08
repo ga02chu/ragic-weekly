@@ -356,7 +356,7 @@ tfoot.wk td{background:#FFF8E1;color:#633806;border-top:1.5px solid #F4C775;}
 
   <!-- 上傳區 -->
   <div class="card">
-    <div class="ct">上傳資料檔案 <span style="font-size:11px;font-weight:400;color:#888">（① ② 必填　③ ④ 選填）</span></div>
+    <div class="ct">上傳資料檔案 <span style="font-size:11px;font-weight:400;color:#888">（① ② ③ ④ 必填）</span></div>
     <div class="ug">
       <label class="uz" id="pz"><input type="file" accept=".xlsx" id="pi">
         <div class="ui" id="pui">💼</div>
@@ -380,8 +380,7 @@ tfoot.wk td{background:#FFF8E1;color:#633806;border-top:1.5px solid #F4C775;}
       </label>
     </div>
     <div style="margin-top:10px">
-      <button class="pb tmpl" onclick="downloadTemplate()">⬇ 下載人事調整記錄表範本</button>
-    
+      
     </div>
     <div id="loading" class="loading" style="display:none">解析中…</div>
     <div id="err" class="err-box" style="display:none"></div>
@@ -750,14 +749,16 @@ function parseBreak(wb){
   return rows.slice(hi+1).filter(r=>String(r[ci]||'').trim().startsWith('N')).map(r=>{
     const{str:dateStr,date}=parseAttDate(r[cd]);
     const stM=pMinFlex(r[cst]),etM=pMinFlex(r[cet]);
+    const id=String(r[ci]||'').trim();
+    if(!id||!date)return null;
     return{
-      id:String(r[ci]).trim(),name:String(r[cn]||'').trim(),
+      id,name:String(r[cn]||'').trim(),
       dateStr,date,
       startTime:stM,endTime:etM,
-      startLoc:String(r[csl]||'').trim(),
-      endLoc:String(r[cel]||'').trim()
+      startLoc:String(r[csl]||'').trim()||'未知',
+      endLoc:String(r[cel]||'').trim()||'未知'
     };
-  });
+  }).filter(Boolean);
 }
 
 // ── Parse location ────────────────────────────────────────────────────────
