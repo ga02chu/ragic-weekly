@@ -2012,19 +2012,19 @@ function serializeADJ() {
 // ── 還原資料 ──────────────────────────────────────────────────────────────
 function restorePAY(json) {
   PAY = JSON.parse(json);
-  markDone('p', '☁️ 從雲端載入');
+  markDone('p', '① 薪資保險資料 ✱\n☁️ 從雲端載入');
 }
 function restoreATT(json) {
   const raw = JSON.parse(json);
   raw.records = raw.records.map(r => ({ ...r, date: r.date ? new Date(r.date) : null }));
   ATT = raw;
-  markDone('a', '☁️ 從雲端載入');
+  markDone('a', '② 出勤紀錄（雲端）');
   fillStores();
 }
 function restoreLOC(json) {
   const raw = JSON.parse(json);
   LOC = raw.map(r => ({ ...r, date: r.date ? new Date(r.date) : null }));
-  markDone('l', '☁️ 從雲端載入');
+  markDone('l', '③ 打卡紀錄（雲端）');
 }
 function restoreADJ(json) {
   const raw = JSON.parse(json);
@@ -2033,7 +2033,7 @@ function restoreADJ(json) {
     startDate: r.startDate ? new Date(r.startDate) : null,
     endDate: r.endDate ? new Date(r.endDate) : null
   }));
-  markDone('adj', `☁️ 從雲端載入（${ADJ.length}筆）`);
+  markDone('adj', `④ 調整時數表（雲端 ${ADJ.length}筆）`);
 }
 
 // ── 儲存全部到雲端 ────────────────────────────────────────────────────────
