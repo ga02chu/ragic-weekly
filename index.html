@@ -741,11 +741,14 @@ function parseAtt(wb){
 // ── Parse 休息打卡紀錄 ─────────────────────────────────────────────────────
 function parseBreak(wb){
   const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:'',cellDates:true});
-  let hi=rows.findIndex(r=>r.some(c=>String(c).trim()==='工號'));
+  let hi=rows.findIndex(r=>r.some(c=>String(c||'').trim()==='工號'));
   if(hi<0)hi=0;
-  const h=rows[hi].map(c=>String(c).trim());
+  const h=rows[hi].map(c=>String(c||'').trim());
   const C=n=>h.findIndex(c=>c.includes(n));
-  const[ci,cn,cd,cst,csl,cet,cel]=[C('工號'),C('姓名'),C('日期'),C('休息開始時間'),C('休息開始地點'),C('休息結束時間'),C('休息結束地點')];
+  const ci=C('工號'),cn=C('姓名'),cd=C('日期');
+  const cst=C('休息開始時間'),csl=C('休息開始地點');
+  const cet=C('休息結束時間'),cel=C('休息結束地點');
+  if(ci<0||cd<0){console.warn('parseBreak: 找不到必要欄位',h);return[];}
   return rows.slice(hi+1).filter(r=>String(r[ci]||'').trim().startsWith('N')).map(r=>{
     const{str:dateStr,date}=parseAttDate(r[cd]);
     const stM=pMinFlex(r[cst]),etM=pMinFlex(r[cet]);
