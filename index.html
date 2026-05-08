@@ -1237,14 +1237,7 @@ function hideErr(){document.getElementById('err').style.display='none';}
 async function handleFile(f,type){
   showLoad(true);hideErr();
   try{
-    const buf=await readFile(f);
-    let wb;
-    try{
-      wb=XLSX.read(buf,{type:'array',cellDates:false,raw:true});
-    }catch(e1){
-      try{wb=XLSX.read(buf,{type:'array'});}
-      catch(e2){showErr(type+'讀取失敗：'+e2.message);showLoad(false);return;}
-    }
+    const buf=await readFile(f);const wb=XLSX.read(buf,{type:'array'});
     if(type==='p'){PAY=parsePay(wb);markDone('p',f.name);}
     else if(type==='a'){
       ATT=parseAtt(wb);
