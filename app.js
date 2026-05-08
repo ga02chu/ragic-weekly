@@ -744,7 +744,19 @@ function switchSection(key) {
   document.getElementById('wdTopbarRight').style.display   = isWd  ? 'flex' : 'none';
   // Clear date label when switching to yoy or settings
   if (isYoy || isWd || key === 'settings' || isHr) document.getElementById('dateRangeLabel').textContent = '';
-  if (isHr && typeof renderW === 'function') { setTimeout(() => { if (PAY && ATT) { renderW(); renderM(); } }, 100); }
+  if (isHr && typeof renderW === 'function') {
+    // 同步主頁面日期到人事成本
+    const mainFrom = document.getElementById('dateFrom')?.value;
+    const mainTo   = document.getElementById('dateTo')?.value;
+    if (mainFrom && mainTo) {
+      const ws = document.getElementById('ws'); if (ws) ws.value = mainFrom;
+      const we = document.getElementById('we'); if (we) we.value = mainTo;
+      // 月報：取 mainFrom 的整月
+      const d = new Date(mainFrom);
+      const y = d.getFullYear(), m = d.getMonth();
+      const ms = document.getElementById('ms'); if (ms) ms.value = `${y}-${String(m+1).padStart(2,'0')}-01`;
+      const me = document.getElementById('me'); if (me) me.value = `${y}-${String(m+1).padStart(2,'0')}-${new Date(y,m+1,0).getDate()}`;
+    } setTimeout(() => { if (PAY && ATT) { renderW(); renderM(); } }, 100); }
   else if (state.records.length > 0) document.getElementById('dateRangeLabel').textContent = formatRangeLabel();
 }
 
