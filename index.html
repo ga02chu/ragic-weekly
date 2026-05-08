@@ -567,6 +567,14 @@ function calcIns(e, periodInfo){
 // 生日月份前一個月發放：到職1~2年 $1,000，2年以上 $2,000
 function calcBirthdayBonus(e, periodStart) {
   if (!e.birthday || !e.hireDate || e.type !== '月薪正職') return 0;
+  // 加到 err div 顯示
+  const dbg=document.getElementById('err');
+  if(dbg&&e.name==='黃廷曜'){
+    dbg.style.display='block';
+    dbg.style.background='#e0f0ff';
+    dbg.style.color='#000';
+    dbg.textContent='[birthday debug] '+e.name+' bMonth:'+e.birthday.getMonth()+' payMonth:'+((e.birthday.getMonth()-1+12)%12)+' periodMonth:'+periodStart.getMonth()+' years:'+((periodStart-e.hireDate)/(365.25*24*3600*1000)).toFixed(2);
+  }
   console.log('[birthday]', e.name, 'bMonth:', e.birthday.getMonth(), 'payMonth:', (e.birthday.getMonth()-1+12)%12, 'periodMonth:', periodStart.getMonth());
   // 發放月 = 生日月前一個月
   const bMonth = e.birthday.getMonth(); // 0-11
