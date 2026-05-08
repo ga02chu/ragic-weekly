@@ -525,7 +525,7 @@ tfoot.wk td{background:#FFF8E1;color:#633806;border-top:1.5px solid #F4C775;}
   <script>
 
 // ── Rates ────────────────────────────────────────────────────────────────
-const R={lb:0.0875,voc:0.0017,rsv:0.00025,pen:0.06,hb:0.0484};
+const R={lb:0.0875,voc:0.00195,rsv:0.00025,pen:0.06,hb:0.0484};
 const FT_DIV=240;
 
 // ── State ─────────────────────────────────────────────────────────────────
@@ -559,6 +559,22 @@ function calcIns(e, periodInfo){
     // 新進：健保全月，不按比例（已是全月計算，不用調整）
   }
   return{lb,voc,rsv,pen,hb,total:lb+voc+rsv+pen+hb};
+}
+
+
+// ── 生日禮金（正職）──────────────────────────────────────────────────────
+// 生日月份前一個月發放：到職1~2年 $1,000，2年以上 $2,000
+function calcBirthdayBonus(e, periodStart) {
+  if (!e.birthday || !e.hireDate || e.type !== '月薪正職') return 0;
+  // 發放月 = 生日月前一個月
+  const bMonth = new Date(e.birthday).getMonth(); // 0-11
+  const payMonth = (bMonth - 1 + 12) % 12;        // 前一個月
+  if (periodStart.getMonth() !== payMonth) return 0;
+  // 計算年資
+  const hireDate = new Date(e.hireDate);
+  const years = (periodStart - hireDate) / (365.25 * 24 * 3600 * 1000);
+  if (years < 1) return 0;
+  return years < 2 ? 1000 : 2000;
 }
 
 // ── PT bonus — uses payroll dept (e.dept), never attendance dept ──────────
@@ -625,7 +641,9 @@ function parsePay(wb){
     else if(['督導','行政助理','執行長','廚師長'].some(t=>title.includes(t))&&!title.includes('內場')&&!title.includes('外場'))titleLoc='總部';
     const nameStr=String(r[1]).trim();
     const isForeign=String(r[11]||'').trim().includes('外籍')||String(r[12]||'').trim().includes('外籍');
-    return{id:String(r[0]).trim(),name:nameStr,dept:String(r[2]).trim(),isForeign,
+    const hireDateStr=String(r[11]||'').trim();
+    const birthdayStr=String(r[12]||'').trim();
+    return{id:String(r[0]).trim(),name:nameStr,dept:String(r[2]).trim(),isForeign,hireDate:hireDateStr,birthday:birthdayStr,
       baseSalary:bs,mealAllow:meal,hourlyRate:hr,mgmtAllow:mgmt,housingAllow:housing,
       perfBonus:perf,annualBonus:annual,skillAllow:skill,title,titleLoc,
       fixedSalary:bs+meal+mgmt+housing+perf+annual+skill,
@@ -1033,7 +1051,8 @@ function calcResults(sDate,eDate,store,stdH,pf,adjMap,excludeMgmt,locFilter){exc
       const otH=(!isHQ)?Math.max(0,totalH-eStd):0;
       const otPay=noPunch?null:(isHQ?0:ftOT(otH,hr));
       const extraAmt=ATT.extras?((ATT.extras[e.id]||0)):0;
-      const gross=noPunch?null:e.fixedSalary+(otPay||0)+extraAmt;
+      const birthdayAmt=calcBirthdayBonus(e, sDate);
+      const gross=noPunch?null:e.fixedSalary+(otPay||0)+extraAmt+birthdayAmt;
       // Weekly estimates
       const weekStd=eStd*pf;           // proportional standard for this period
       const weekOtH=Math.max(0,totalH-weekStd);
@@ -1057,7 +1076,7 @@ function calcResults(sDate,eDate,store,stdH,pf,adjMap,excludeMgmt,locFilter){exc
       const attLoc=rule.includes('內場')?'內場':(rule?'外場':'');
       const loc=e.titleLoc||attLoc||'外場'; // payroll 職稱 > ATT 出勤規則 > default
       const extraDetail=ATT.extrasDetail?ATT.extrasDetail[e.id]:null;
-      return{...e,totalH,noPunch,eStd,hr,otH,otPay,gross,ins,rule,loc,extra:extraAmt,extraDetail,
+      return{...e,totalH,noPunch,eStd,hr,otH,otPay,gross,ins,rule,loc,extra:extraAmt,extraDetail,birthdayAmt,
              propSal,propIns,propFactor:pf,weekStd,weekOtH,weekOtPay,pace,
              ptDailyOt:0,b66:0,bH:0,rAddon:0};
     }else{
@@ -1894,7 +1913,11 @@ function renderMtable(){
       <td>${rDisp}</td>
       <td>${fT(e.fixedSalary||0)}</td>
       <td class="${ot>0?'ov':''}">${e.noPunch&&e.type==='月薪正職'?'<span class="dim">月底確認</span>':fT(ot)}</td>
-      <td style="font-size:10px">${e.extra?`<span style="color:${e.extra>0?'#1D9E75':'#C0392B'};font-weight:600">${e.extra>0?'+':''}${fN(e.extra)}</span>`:'-'}</td>
+      <td style="font-size:10px">
+        ${e.extra?`<span style="color:${e.extra>0?'#1D9E75':'#C0392B'};font-weight:600">${e.extra>0?'+':''}${fN(e.extra)}</span>`:''}
+        ${e.birthdayAmt>0?`<span style="color:#6366f1;font-weight:600">🎂+${fN(e.birthdayAmt)}</span>`:''}
+        ${!e.extra&&!e.birthdayAmt?'-':''}
+      </td>
       <td class="${sp>0?'gv':''}" style="font-size:10px">${bonusStr}</td>
       <td style="font-weight:600">${e.noPunch?'<span class="dim">待確認</span>':fT(e.gross||0)}</td>
       <td class="ins">${fT(I.pen||0)}</td><td class="ins">${fT(I.lb||0)}</td>
