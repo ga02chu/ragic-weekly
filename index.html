@@ -8,9 +8,79 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    #login-screen {
+      position: fixed; inset: 0; z-index: 9999;
+      background: #3c2929;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #login-screen.hidden { display: none; }
+    .login-box {
+      background: #fff; border-radius: 16px; padding: 40px 36px;
+      width: 360px; box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+    }
+    .login-logo {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 28px;
+    }
+    .login-logo svg rect:first-child { fill: #3c2929; }
+    .login-logo span { font-size: 18px; font-weight: 600; color: #3c2929; font-family: 'Noto Sans TC', sans-serif; }
+    .login-title { font-size: 22px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px; }
+    .login-sub { font-size: 13px; color: #6b7280; margin-bottom: 28px; }
+    .login-field { margin-bottom: 16px; }
+    .login-field label { display: block; font-size: 12px; font-weight: 500; color: #374151; margin-bottom: 6px; }
+    .login-field input {
+      width: 100%; padding: 10px 12px; border: 1.5px solid #e5e7eb;
+      border-radius: 8px; font-size: 14px; outline: none; box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+    .login-field input:focus { border-color: #3c2929; }
+    .login-btn {
+      width: 100%; padding: 11px; background: #3c2929; color: #fff;
+      border: none; border-radius: 8px; font-size: 14px; font-weight: 600;
+      cursor: pointer; margin-top: 8px; transition: opacity 0.2s;
+    }
+    .login-btn:hover { opacity: 0.85; }
+    .login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .login-error {
+      margin-top: 12px; font-size: 13px; color: #dc2626;
+      text-align: center; min-height: 20px;
+    }
+    #app { display: none; }
+    #app.visible { display: flex; }
+  </style>
 </head>
 <body>
+
+  <!-- 登入畫面 -->
+  <div id="login-screen">
+    <div class="login-box">
+      <div class="login-logo">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <rect width="28" height="28" rx="8" fill="#3c2929"/>
+          <rect x="6" y="10" width="16" height="2.5" rx="1.25" fill="white"/>
+          <rect x="6" y="15.5" width="10" height="2.5" rx="1.25" fill="white"/>
+        </svg>
+        <span>週報系統</span>
+      </div>
+      <div class="login-title">歡迎回來</div>
+      <div class="login-sub">請輸入帳號密碼登入</div>
+      <div class="login-field">
+        <label>Email</label>
+        <input type="email" id="loginEmail" placeholder="your@email.com" />
+      </div>
+      <div class="login-field">
+        <label>密碼</label>
+        <input type="password" id="loginPassword" placeholder="••••••••" />
+      </div>
+      <button class="login-btn" id="loginBtn" onclick="doLogin()">登入</button>
+      <div class="login-error" id="loginError"></div>
+    </div>
+  </div>
+
+  <!-- 主應用 -->
   <div id="app">
     <aside class="sidebar">
       <div class="sidebar-logo">
@@ -39,9 +109,9 @@
           平假日分析
         </button>
         <a href="/hr.html" target="_blank" class="nav-item">
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M1 13c0-2.8 2.2-5 5-5s5 2.2 5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M11 7l1.5 1.5L15 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  人事成本
-</a>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M1 13c0-2.8 2.2-5 5-5s5 2.2 5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M11 7l1.5 1.5L15 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          人事成本
+        </a>
         <button class="nav-item" data-section="settings">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
           設定
@@ -52,6 +122,7 @@
           <span class="dot dot-gray"></span>
           <span>尚未連線</span>
         </div>
+        <button onclick="doLogout()" style="margin-top:8px;width:100%;padding:7px;background:rgba(255,255,255,0.12);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;">登出</button>
       </div>
     </aside>
 
@@ -89,8 +160,7 @@
           </div>
           <div style="display:flex;align-items:center;gap:8px;">
             <label style="font-size:12px;color:#6b7280;">比較月份</label>
-            <select id="yoyYear" class="settings-input" style="width:90px;padding:5px 8px;font-size:12px;">
-            </select>
+            <select id="yoyYear" class="settings-input" style="width:90px;padding:5px 8px;font-size:12px;"></select>
             <select id="yoyMonth" class="settings-input" style="width:80px;padding:5px 8px;font-size:12px;">
               <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option>
               <option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
@@ -134,23 +204,18 @@
             </div>
           </div>
         </section>
-
         <section class="section" id="section-stores">
           <div id="storesContent"><div class="empty-state"><p class="empty-title">請先載入報表</p></div></div>
         </section>
-
         <section class="section" id="section-logs">
           <div id="logsContent"><div class="empty-state"><p class="empty-title">請先載入報表</p></div></div>
         </section>
-
         <section class="section" id="section-yoy">
           <div id="yoyContent"><div class="empty-state"><p class="empty-title">選擇月份後點擊「載入比較」</p></div></div>
         </section>
-
         <section class="section" id="section-wd">
           <div id="wdContent"><div class="empty-state"><p class="empty-title">選擇月份後點擊「載入分析」</p></div></div>
         </section>
-
         <section class="section" id="section-settings">
           <div class="settings-card">
             <h2 class="settings-title">API 設定</h2>
@@ -203,6 +268,73 @@
       <div class="toast" id="toast"></div>
     </main>
   </div>
+
+  <script>
+    // ── Supabase 初始化 ──
+    const SUPABASE_URL = 'https://pboqxswqhpubfmehukqy.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBib3F4c3dxaHB1YmZtZWh1a3F5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyMDU0MjMsImV4cCI6MjA5Mzc4MTQyM30.ZMONQRqZOyju55S6Asd-qYpc4MK5Ga7_agwlCzbgbWw';
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // ── 檢查登入狀態 ──
+    async function checkAuth() {
+      const { data: { session } } = await _supabase.auth.getSession();
+      if (session) {
+        showApp();
+      } else {
+        document.getElementById('login-screen').classList.remove('hidden');
+      }
+    }
+
+    function showApp() {
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('app').classList.add('visible');
+    }
+
+    // ── 登入 ──
+    async function doLogin() {
+      const email = document.getElementById('loginEmail').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      const btn = document.getElementById('loginBtn');
+      const errEl = document.getElementById('loginError');
+
+      if (!email || !password) {
+        errEl.textContent = '請輸入 Email 和密碼';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = '登入中...';
+      errEl.textContent = '';
+
+      const { error } = await _supabase.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        errEl.textContent = '帳號或密碼錯誤，請再試一次';
+        btn.disabled = false;
+        btn.textContent = '登入';
+      } else {
+        showApp();
+      }
+    }
+
+    // ── 登出 ──
+    async function doLogout() {
+      await _supabase.auth.signOut();
+      document.getElementById('app').classList.remove('visible');
+      document.getElementById('login-screen').classList.remove('hidden');
+      document.getElementById('loginEmail').value = '';
+      document.getElementById('loginPassword').value = '';
+    }
+
+    // ── Enter 鍵登入 ──
+    document.getElementById('loginPassword').addEventListener('keydown', e => {
+      if (e.key === 'Enter') doLogin();
+    });
+
+    // ── 頁面載入時檢查 ──
+    checkAuth();
+  </script>
+
   <script src="app.js"></script>
 </body>
 </html>
