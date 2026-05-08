@@ -2202,6 +2202,9 @@ function restoreATT(json) {
   const raw = JSON.parse(json);
   raw.records = raw.records.map(r => ({ ...r, date: r.date ? new Date(r.date) : null }));
   ATT = raw;
+  // 備份 Apollo 原始 extras
+  ATT._apolloExtras = Object.assign({}, ATT.extras || {});
+  ATT._apolloExtrasDetail = Object.assign({}, ATT.extrasDetail || {});
   markDone('a', '② 出勤紀錄（雲端）');
   fillStores();
 }
