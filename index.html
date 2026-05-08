@@ -804,87 +804,143 @@ function parseLeaveDate(val){
 // Delta is computed PER MONTH at render time, so leaves from different months don't bleed over
 function parseAdj(wb){
   const records=[];
-  const addLeave=(name,type,days,startDate,endDate)=>{
-    name=name.replace(/（範例）/g,'').trim();
-    if(!name||name==='姓名'||name.includes('範例'))return;
-    if(name&&type&&(days!==0||type==='到職'||type==='離職'))
-      records.push({name,type,days,startDate,endDate});
-  };
+  const foreignNames=new Set();
+  const lateMap={};      // name → {count, minutes}
+  const compOffMap={};   // name → hours (加班換補休)
+  const holidayDates={}; // date → {name, multiplier}
+  const adjExtras={};    // name → [{code, desc, amt}]
   const sheetNames=wb.SheetNames;
-  const isMulti=sheetNames.some(n=>['上個月不足','本月請假','新進人員','離職人員'].includes(n));
 
-  if(isMulti){
-    const s1=wb.Sheets['上個月不足'];
-    if(s1){
-      const r=XLSX.utils.sheet_to_json(s1,{header:1,defval:'',cellDates:true});
-      const hi=r.findIndex(row=>row.some(c=>String(c).trim()==='姓名'));
-      r.slice(Math.max(hi,0)+1).forEach(row=>{
-        const name=String(row[0]||'').trim();
-        const h=parseFloat(row[1]);
-        if(name&&!isNaN(h)&&h>0)addLeave(name,'前月不足',h,null,null);
-      });
-    }
-    const s2=wb.Sheets['本月請假'];
-    if(s2){
-      const r=XLSX.utils.sheet_to_json(s2,{header:1,defval:'',cellDates:true});
-      const hi=r.findIndex(row=>row.some(c=>String(c).trim()==='假別'));
-      r.slice(Math.max(hi,0)+1).forEach(row=>{
-        const name=String(row[0]||'').trim();
-        const type=String(row[1]||'').trim();
-        const days=parseFloat(row[4]);
-        if(name&&type&&!isNaN(days)&&days>0)
-          addLeave(name,type,days,parseLeaveDate(row[2]),parseLeaveDate(row[3]));
-      });
-    }
-    const s3=wb.Sheets['新進人員'];
-    if(s3){
-      const r=XLSX.utils.sheet_to_json(s3,{header:1,defval:'',cellDates:true});
+  // ── 0. 外籍員工 ──────────────────────────────────────────────────────
+  const fgnSN=sheetNames.find(n=>n.includes('外籍'));
+  if(fgnSN){
+    const r=XLSX.utils.sheet_to_json(wb.Sheets[fgnSN],{header:1,defval:''});
+    r.forEach(row=>{const n=String(row[0]||'').trim();if(n&&n!=='姓名')foreignNames.add(n);});
+  }
+
+  // ── 1. 上個月不足 ─────────────────────────────────────────────────────
+  const s1=wb.Sheets[sheetNames.find(n=>n.includes('上個月不足')||n.includes('上月不足'))];
+  if(s1){
+    const r=XLSX.utils.sheet_to_json(s1,{header:1,defval:''});
+    const hi=r.findIndex(row=>row.some(c=>String(c).trim()==='姓名'));
+    r.slice(Math.max(hi,0)+1).forEach(row=>{
+      const name=String(row[0]||'').trim();
+      const h=parseFloat(row[1]);
+      if(name&&!isNaN(h)&&h>0)records.push({name,type:'前月不足',days:h,startDate:null,endDate:null});
+    });
+  }
+
+  // ── 2. 本月請假 ───────────────────────────────────────────────────────
+  const s2=wb.Sheets[sheetNames.find(n=>n.includes('本月請假')||n.includes('請假'))];
+  if(s2){
+    const r=XLSX.utils.sheet_to_json(s2,{header:1,defval:'',cellDates:true});
+    const hi=r.findIndex(row=>row.some(c=>String(c).trim()==='假別'));
+    r.slice(Math.max(hi,0)+1).forEach(row=>{
+      const name=String(row[0]||'').trim();
+      const type=String(row[1]||'').trim();
+      const days=parseFloat(row[4]);
+      if(name&&type&&!isNaN(days)&&days>0)
+        records.push({name,type,days,startDate:parseLeaveDate(row[2]),endDate:parseLeaveDate(row[3])});
+    });
+  }
+
+  // ── 3. 新進與離職（合併工作表）────────────────────────────────────────
+  const s3=wb.Sheets[sheetNames.find(n=>n.includes('新進')&&n.includes('離職'))||
+            sheetNames.find(n=>n.includes('新進人員'))||''];
+  if(s3){
+    const r=XLSX.utils.sheet_to_json(s3,{header:1,defval:'',cellDates:true});
+    const hi=r.findIndex(row=>row.some(c=>String(c).trim()==='姓名'));
+    r.slice(Math.max(hi,0)+1).forEach(row=>{
+      const name=String(row[0]||'').trim();
+      if(!name||name==='姓名')return;
+      const hireVal=row[1],quitVal=row[2];
+      if(hireVal){const d=parseLeaveDate(hireVal);if(d)records.push({name,type:'到職',days:0,startDate:d,endDate:null});}
+      if(quitVal){const d=parseLeaveDate(quitVal);if(d)records.push({name,type:'離職',days:0,startDate:d,endDate:null});}
+    });
+  } else {
+    // 舊格式：分開的工作表
+    const sNew=wb.Sheets['新進人員'],sQuit=wb.Sheets['離職人員'];
+    if(sNew){
+      const r=XLSX.utils.sheet_to_json(sNew,{header:1,defval:'',cellDates:true});
       const hi=r.findIndex(row=>row.some(c=>String(c).trim()==='到職日期'));
       r.slice(Math.max(hi,0)+1).forEach(row=>{
         const name=String(row[0]||'').trim();
         const d=parseLeaveDate(row[1]);
-        if(name&&d)addLeave(name,'到職',0,d,null);
+        if(name&&d)records.push({name,type:'到職',days:0,startDate:d,endDate:null});
       });
     }
-    const s4=wb.Sheets['離職人員'];
-    if(s4){
-      const r=XLSX.utils.sheet_to_json(s4,{header:1,defval:'',cellDates:true});
+    if(sQuit){
+      const r=XLSX.utils.sheet_to_json(sQuit,{header:1,defval:'',cellDates:true});
       const hi=r.findIndex(row=>row.some(c=>String(c).trim()==='最後上班日'));
       r.slice(Math.max(hi,0)+1).forEach(row=>{
         const name=String(row[0]||'').trim();
         const d=parseLeaveDate(row[1]);
-        if(name&&d)addLeave(name,'離職',0,d,null);
+        if(name&&d)records.push({name,type:'離職',days:0,startDate:d,endDate:null});
       });
     }
-    const s5=wb.Sheets['其他加扣項目'];
-    if(s5){
-      const r=XLSX.utils.sheet_to_json(s5,{header:1,defval:'',cellDates:true});
-      const hi=r.findIndex(row=>row.some(c=>String(c).trim()==='金額'));
-      r.slice(Math.max(hi,0)+1).forEach(row=>{
-        const name=String(row[0]||'').trim();
-        const amt=parseFloat(row[2]);
-        if(name&&!isNaN(amt)&&amt!==0)addLeave(name,'加扣項目',amt,null,null);
-      });
-    }
-  } else {
-    // Legacy single-sheet
-    const ws=wb.Sheets[sheetNames[0]];
-    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',cellDates:true});
-    let hi=rows.findIndex(r=>r.some(c=>String(c).trim()==='假別'));if(hi<0)hi=0;
-    const hdr=rows[hi].map(c=>String(c).trim());
-    const C=n=>hdr.indexOf(n);
-    const[cn,ct,cs,ce,cd]=[C('姓名'),C('假別'),C('開始日期'),C('結束日期'),C('請假天數（或不足時數）')];
-    rows.slice(hi+1).filter(r=>String(r[cn]||'').trim()).forEach(r=>{
-      const name=String(r[cn]).trim();
-      const type=String(r[ct]||'').trim();
-      const days=parseFloat(r[cd])||0;
-      addLeave(name,type,days,parseLeaveDate(r[cs]),parseLeaveDate(r[ce]));
+  }
+
+  // ── 4. 其他加扣（含科目代碼）────────────────────────────────────────
+  const SKIP_CODES=['7004']; // 股東分紅不計入成本
+  const s4=wb.Sheets[sheetNames.find(n=>n.includes('其他加扣'))];
+  if(s4){
+    const r=XLSX.utils.sheet_to_json(s4,{header:1,defval:''});
+    const hi=r.findIndex(row=>row.some(c=>String(c).trim()==='金額'||String(c).trim()==='科目代碼'));
+    r.slice(Math.max(hi,0)+1).forEach(row=>{
+      const name=String(row[0]||'').trim();
+      const code=String(row[1]||'').trim();
+      const desc=String(row[2]||'').trim();
+      const amt=parseFloat(row[3]);
+      if(!name||isNaN(amt)||amt===0)return;
+      if(SKIP_CODES.includes(code))return;
+      // 8000=扣項：正數存儲，計算時轉負
+      const realAmt=code==='8000'?-Math.abs(amt):amt;
+      if(!adjExtras[name])adjExtras[name]=[];
+      adjExtras[name].push({code,desc,amt:realAmt});
+      records.push({name,type:'加扣項目',days:realAmt,startDate:null,endDate:null,code,desc});
     });
   }
-  return records;
+
+  // ── 5. 遲到記錄 ───────────────────────────────────────────────────────
+  const s5=wb.Sheets[sheetNames.find(n=>n.includes('遲到'))];
+  if(s5){
+    const r=XLSX.utils.sheet_to_json(s5,{header:1,defval:''});
+    const hi=r.findIndex(row=>row.some(c=>String(c).trim()==='姓名'));
+    r.slice(Math.max(hi,0)+1).forEach(row=>{
+      const name=String(row[0]||'').trim();
+      const count=parseInt(row[1])||0;
+      const mins=parseInt(row[2])||0;
+      if(name&&name!=='姓名')lateMap[name]={count,minutes:mins};
+    });
+  }
+
+  // ── 6. 加班換補休 ─────────────────────────────────────────────────────
+  const s6=wb.Sheets[sheetNames.find(n=>n.includes('補休'))];
+  if(s6){
+    const r=XLSX.utils.sheet_to_json(s6,{header:1,defval:''});
+    const hi=r.findIndex(row=>row.some(c=>String(c).trim()==='姓名'));
+    r.slice(Math.max(hi,0)+1).forEach(row=>{
+      const name=String(row[0]||'').trim();
+      const h=parseFloat(row[1]);
+      if(name&&!isNaN(h)&&h>0)compOffMap[name]=h;
+    });
+  }
+
+  // ── 7. 國定假日 ───────────────────────────────────────────────────────
+  const s7=wb.Sheets[sheetNames.find(n=>n.includes('國定假日'))];
+  if(s7){
+    const r=XLSX.utils.sheet_to_json(s7,{header:1,defval:'',cellDates:true});
+    const hi=r.findIndex(row=>row.some(c=>String(c).trim()==='日期'||String(c).trim()==='假日名稱'));
+    r.slice(Math.max(hi,0)+1).forEach(row=>{
+      const d=parseLeaveDate(row[0]);
+      const name=String(row[1]||'').trim();
+      const mult=parseFloat(row[2])||2;
+      if(d){const key=d.toISOString().split('T')[0];holidayDates[key]={name,multiplier:mult};}
+    });
+  }
+
+  return{records,foreignNames,lateMap,compOffMap,holidayDates,adjExtras};
 }
-// Compute per-employee delta for a specific month (year+month)
-// Only include leaves whose dates fall in that month (or 前月不足 which is always applied)
 function adjDeltaForMonth(year,month){
   if(!ADJ||!Array.isArray(ADJ))return{};
   const nameToId={};
@@ -1052,7 +1108,12 @@ function calcResults(sDate,eDate,store,stdH,pf,adjMap,excludeMgmt,locFilter){exc
       const otPay=noPunch?null:(isHQ?0:ftOT(otH,hr));
       const extraAmt=ATT.extras?((ATT.extras[e.id]||0)):0;
       const birthdayAmt=calcBirthdayBonus(e, sDate);
-      const gross=noPunch?null:e.fixedSalary+(otPay||0)+extraAmt+birthdayAmt;
+      // 遲到扣考績（正職）：累積≥20分或≥4次 → adj_5001 -2000（已在 adjExtras 處理）
+      // 加班換補休：減少有效加班時數
+      const compOff=window._adjCompOff&&window._adjCompOff[e.name]||0;
+      const effectiveOtH=Math.max(0,otH-compOff);
+      const effectiveOtPay=noPunch?null:(isHQ?0:ftOT(effectiveOtH,hr));
+      const gross=noPunch?null:e.fixedSalary+(effectiveOtPay||0)+extraAmt+birthdayAmt;
       // Weekly estimates
       const weekStd=eStd*pf;           // proportional standard for this period
       const weekOtH=Math.max(0,totalH-weekStd);
@@ -1153,10 +1214,40 @@ async function handleFile(f,type){
       fillStores();
     }
     else if(type==='l'){LOC=parseLoc(wb);markDone('l',f.name);}
-    else if(type==='adj'){ADJ=parseAdj(wb);markDone('adj',f.name);
-      document.getElementById('adjui').textContent='✅';
+    else if(type==='adj'){
+      const adjResult=parseAdj(wb);
+      ADJ=adjResult.records;
+      window._adjForeign=adjResult.foreignNames||new Set();
+      window._adjLate=adjResult.lateMap||{};
+      window._adjCompOff=adjResult.compOffMap||{};
+      window._adjHoliday=adjResult.holidayDates||{};
+      window._adjExtras=adjResult.adjExtras||{};
+      // 把 adjExtras 合併進 ATT.extras
+      if(ATT){
+        Object.entries(window._adjExtras).forEach(([name,items])=>{
+          const emp=PAY&&PAY.find(e=>e.name===name);
+          const eid=emp?emp.id:null;
+          if(!eid)return;
+          if(!ATT.extras)ATT.extras={};
+          if(!ATT.extrasDetail)ATT.extrasDetail={};
+          items.forEach(item=>{
+            ATT.extras[eid]=(ATT.extras[eid]||0)+item.amt;
+            if(!ATT.extrasDetail[eid])ATT.extrasDetail[eid]=[];
+            ATT.extrasDetail[eid].push({code:item.code,desc:item.desc,amt:item.amt});
+          });
+        });
+      }
+      // 外籍員工標記到 PAY
+      if(PAY&&window._adjForeign.size>0){
+        PAY.forEach(e=>{if(window._adjForeign.has(e.name))e.isForeign=true;});
+      }
+      markDone('adj',f.name);
       const names=[...new Set(ADJ.map(r=>r.name))];
-      document.getElementById('adjul').textContent=`請假記錄：${ADJ.length}筆（${names.length}人）`;}
+      const extras=Object.keys(window._adjExtras||{}).length;
+      const late=Object.keys(window._adjLate||{}).length;
+      document.getElementById('adjui').textContent='✅';
+      document.getElementById('adjul').textContent=`請假:${ADJ.filter(r=>!['加扣項目','前月不足'].includes(r.type)).length}筆 加扣:${Object.values(window._adjExtras||{}).flat().length}筆 遲到:${late}人`;
+    }
     if(PAY&&ATT){renderW();renderM();}
   }catch(ex){showErr(type+'解析失敗：'+ex.message);}
   showLoad(false);
