@@ -881,7 +881,7 @@ function parseAdj(wb){
   }
 
   // ── 4. 其他加扣（含科目代碼）────────────────────────────────────────
-  const SKIP_CODES=['7004']; // 股東分紅不計入成本
+  const SKIP_CODES=[]; // 全部讀入，7004在成本計算時排除
   const s4=wb.Sheets[sheetNames.find(n=>n.includes('其他加扣'))];
   if(s4){
     const r=XLSX.utils.sheet_to_json(s4,{header:1,defval:''});
@@ -1106,7 +1106,10 @@ function calcResults(sDate,eDate,store,stdH,pf,adjMap,excludeMgmt,locFilter){exc
       const isHQ=e.dept==='總部'||e.dept.includes('總部')||e.dept.includes('執行長');
       const otH=(!isHQ)?Math.max(0,totalH-eStd):0;
       const otPay=noPunch?null:(isHQ?0:ftOT(otH,hr));
-      const extraAmt=ATT.extras?((ATT.extras[e.id]||0)):0;
+      // extraAmt 排除 7004（股東分紅不計入成本，但顯示在應發）
+      const extraDetail7004=(ATT.extrasDetail?ATT.extrasDetail[e.id]||[]:[]).filter(d=>d.code==='7004');
+      const extra7004=extraDetail7004.reduce((s,d)=>s+d.amt,0);
+      const extraAmt=ATT.extras?((ATT.extras[e.id]||0)-extra7004):0;
       const birthdayAmt=calcBirthdayBonus(e, sDate);
       // 遲到扣考績（正職）：累積≥20分或≥4次 → adj_5001 -2000（已在 adjExtras 處理）
       // 加班換補休：減少有效加班時數
