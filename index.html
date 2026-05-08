@@ -672,8 +672,40 @@ function fuzzyCol(hdr,keyword){
   return hdr.findIndex(c=>String(c).trim().replace(/\s/g,'').includes(k));
 }
 
+// ── 安全讀取時間（支援 float 分數和字串）──────────────────────────────────
+function safeTime(val){
+  if(val===null||val===undefined||val==='')return null;
+  if(typeof val==='number'){
+    if(val>1) val=val-Math.floor(val); // 去掉整數部分
+    return Math.round(val*1440); // 轉成分鐘
+  }
+  const s=String(val).trim();
+  const m=s.match(/^(\d{1,2}):(\d{2})/);
+  if(m)return +m[1]*60+(+m[2]);
+  return null;
+}
+
+// ── 安全讀取日期字串 ──────────────────────────────────────────────────────
+function safeDateStr(val){
+  if(!val&&val!==0)return{str:'',date:null};
+  const s=String(val).trim();
+  const m=s.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if(m){
+    const d=new Date(+m[1],+m[2]-1,+m[3]);
+    return{str:s,date:isNaN(d)?null:d};
+  }
+  // Excel serial
+  if(typeof val==='number'){
+    const utc=new Date(Math.round((val-25569)*86400000));
+    const d=new Date(utc.getUTCFullYear(),utc.getUTCMonth(),utc.getUTCDate());
+    const str=`${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+    return{str,date:isNaN(d)?null:d};
+  }
+  return{str:s,date:null};
+}
+
 // ── Parse attendance ──────────────────────────────────────────────────────
-function parseAtt(wb){
+function parseAtt(wb){ // uses safeTime and safeDateStr
   // Try each sheet — look for one with '實際工時' or '上班打卡時間'
   for(const nm of wb.SheetNames){
     const ws=wb.Sheets[nm];
@@ -732,11 +764,11 @@ function parseAtt(wb){
   const cu=C('單位'),ci=C('工號'),cn=C('姓名'),cd=C('日期');
   const cin=C('上班時間'),cout=C('下班時間');
   return{isApollo:false,extras:{},extrasDetail:{},records:rows.slice(hi+1).filter(r=>String(r[ci]||'').trim().startsWith('N')).map(r=>{
-    const iM=pMinFlex(r[cin]),oM=pMinFlex(r[cout]);
-    const{str:dateStr,date}=parseAttDate(r[cd]);
+    const iM=safeTime(r[cin]),oM=safeTime(r[cout]);
+    const{str:dateStr,date}=safeDateStr(r[cd]);
     return{dept:String(r[cu]||'').trim(),id:String(r[ci]).trim(),name:String(r[cn]||'').trim(),
       dateStr,date,hours:rawH(iM,oM),
-      inTime:r[cin]!=null?String(r[cin]):'',outTime:r[cout]!=null?String(r[cout]):'',
+      inTime:iM!=null?String(r[cin]):'',outTime:oM!=null?String(r[cout]):'',
       crossMidnight:isCross(iM,oM)};
   })};
 }
@@ -755,7 +787,8 @@ function parseBreak(wb){
   if(ci<0||cd<0){console.warn('parseBreak: 找不到必要欄位',h);return[];}
   return rows.slice(hi+1).filter(r=>String(r[ci]||'').trim().startsWith('N')).map(r=>{
     const{str:dateStr,date}=parseAttDate(r[cd]);
-    const stM=pMinFlex(r[cst]),etM=pMinFlex(r[cet]);
+    const stM=safeTime(r[cst]),etM=safeTime(r[cet]);
+    const{str:dateStr,date}=safeDateStr(r[cd]);
     const id=String(r[ci]||'').trim();
     if(!id||!date)return null;
     return{
@@ -776,12 +809,12 @@ function parseLoc(wb){
   const C=n=>fuzzyCol(h,n);
   const[ci,cn,cd,cit,col,cot,cdl]=[C('工號'),C('姓名'),C('日期'),C('上班時間'),C('上班地點'),C('下班時間'),C('下班地點')];
   return rows.slice(hi+1).filter(r=>String(r[ci]||'').trim().startsWith('N')).map(r=>{
-    const iM=pMinFlex(r[cit]),oM=pMinFlex(r[cot]);
+    const iM=safeTime(r[cit]),oM=safeTime(r[cot]);
     const hrs=rawH(iM,oM);
     const inL=String(r[col]||'').trim()||'未知';
     const outL=cdl>=0?String(r[cdl]||'').trim()||'未知':'';
     const cross=outL&&outL!==inL&&outL!=='未知';
-    const{str:dateStr,date}=parseAttDate(r[cd]);
+    const{str:dateStr,date}=safeDateStr(r[cd]);
     return{id:String(r[ci]).trim(),name:String(r[cn]||'').trim(),
       dateStr,date,inLoc:inL,outLoc:outL,hours:hrs,cross};
   });
@@ -1204,7 +1237,7 @@ function hideErr(){document.getElementById('err').style.display='none';}
 async function handleFile(f,type){
   showLoad(true);hideErr();
   try{
-    const buf=await readFile(f);const wb=XLSX.read(buf,{type:'array'});
+    const buf=await readFile(f);const wb=XLSX.read(buf,{type:'array',cellDates:false,raw:true});
     if(type==='p'){PAY=parsePay(wb);markDone('p',f.name);}
     else if(type==='a'){
       ATT=parseAtt(wb);
