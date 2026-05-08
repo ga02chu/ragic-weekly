@@ -677,7 +677,7 @@ function parseAtt(wb){
   // Try each sheet — look for one with '實際工時' or '上班打卡時間'
   for(const nm of wb.SheetNames){
     const ws=wb.Sheets[nm];
-    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',cellDates:true});
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
     const hi=rows.findIndex(r=>r.some(c=>{const s=String(c).trim();return s==='實際工時'||s==='上班打卡時間';}));
     if(hi<0)continue;
     const hdr=rows[hi].map(c=>String(c).trim());
@@ -725,7 +725,7 @@ function parseAtt(wb){
   }
   // Fallback: first sheet, treat as 上下班打卡紀錄 (has 上班時間 / 下班時間)
   const ws=wb.Sheets[wb.SheetNames[0]];
-  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',cellDates:true});
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
   let hi=rows.findIndex(r=>r.some(c=>String(c).trim()==='單位'));if(hi<0)hi=0;
   const hdr=rows[hi].map(c=>String(c).trim());
   const C=n=>fuzzyCol(hdr,n);
@@ -744,7 +744,7 @@ function parseAtt(wb){
 
 // ── Parse 休息打卡紀錄 ─────────────────────────────────────────────────────
 function parseBreak(wb){
-  const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:'',cellDates:true});
+  const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''});
   let hi=rows.findIndex(r=>r.some(c=>String(c||'').trim()==='工號'));
   if(hi<0)hi=0;
   const h=rows[hi].map(c=>String(c||'').trim());
@@ -770,7 +770,7 @@ function parseBreak(wb){
 
 // ── Parse location ────────────────────────────────────────────────────────
 function parseLoc(wb){
-  const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:'',cellDates:true});
+  const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''});
   let hi=rows.findIndex(r=>String(r[0]).trim()==='單位');if(hi<0)hi=0;
   const h=rows[hi].map(c=>String(c).trim());
   const C=n=>fuzzyCol(h,n);
@@ -835,7 +835,7 @@ function parseAdj(wb){
   // ── 2. 本月請假 ───────────────────────────────────────────────────────
   const s2=wb.Sheets[sheetNames.find(n=>n.includes('本月請假')||n.includes('請假'))];
   if(s2){
-    const r=XLSX.utils.sheet_to_json(s2,{header:1,defval:'',cellDates:true});
+    const r=XLSX.utils.sheet_to_json(s2,{header:1,defval:''});
     const hi=r.findIndex(row=>row.some(c=>String(c).trim()==='假別'));
     r.slice(Math.max(hi,0)+1).forEach(row=>{
       const name=String(row[0]||'').trim();
@@ -850,7 +850,7 @@ function parseAdj(wb){
   const s3=wb.Sheets[sheetNames.find(n=>n.includes('新進')&&n.includes('離職'))||
             sheetNames.find(n=>n.includes('新進人員'))||''];
   if(s3){
-    const r=XLSX.utils.sheet_to_json(s3,{header:1,defval:'',cellDates:true});
+    const r=XLSX.utils.sheet_to_json(s3,{header:1,defval:''});
     const hi=r.findIndex(row=>row.some(c=>String(c).trim()==='姓名'));
     r.slice(Math.max(hi,0)+1).forEach(row=>{
       const name=String(row[0]||'').trim();
@@ -863,7 +863,7 @@ function parseAdj(wb){
     // 舊格式：分開的工作表
     const sNew=wb.Sheets['新進人員'],sQuit=wb.Sheets['離職人員'];
     if(sNew){
-      const r=XLSX.utils.sheet_to_json(sNew,{header:1,defval:'',cellDates:true});
+      const r=XLSX.utils.sheet_to_json(sNew,{header:1,defval:''});
       const hi=r.findIndex(row=>row.some(c=>String(c).trim()==='到職日期'));
       r.slice(Math.max(hi,0)+1).forEach(row=>{
         const name=String(row[0]||'').trim();
@@ -872,7 +872,7 @@ function parseAdj(wb){
       });
     }
     if(sQuit){
-      const r=XLSX.utils.sheet_to_json(sQuit,{header:1,defval:'',cellDates:true});
+      const r=XLSX.utils.sheet_to_json(sQuit,{header:1,defval:''});
       const hi=r.findIndex(row=>row.some(c=>String(c).trim()==='最後上班日'));
       r.slice(Math.max(hi,0)+1).forEach(row=>{
         const name=String(row[0]||'').trim();
@@ -931,7 +931,7 @@ function parseAdj(wb){
   // ── 7. 國定假日 ───────────────────────────────────────────────────────
   const s7=wb.Sheets[sheetNames.find(n=>n.includes('國定假日'))];
   if(s7){
-    const r=XLSX.utils.sheet_to_json(s7,{header:1,defval:'',cellDates:true});
+    const r=XLSX.utils.sheet_to_json(s7,{header:1,defval:''});
     const hi=r.findIndex(row=>row.some(c=>String(c).trim()==='日期'||String(c).trim()==='假日名稱'));
     r.slice(Math.max(hi,0)+1).forEach(row=>{
       const d=parseLeaveDate(row[0]);
