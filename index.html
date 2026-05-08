@@ -1425,17 +1425,26 @@ function renderStoreLoc(results,locR,tw){
     return;
   }
 
-  // ── 建立每人每天的休息紀錄 map ────────────────────────────────────────
-  // brkMap[empId][dateStr] = [{startTime, startLoc, endTime, endLoc}, ...]
+  // ── 建立 Apollo 實際工時 map：empId+dateStr → actualHours ─────────────
+  const attMap={};
+  if(ATT&&ATT.records){
+    ATT.records.forEach(r=>{
+      if(!r.id||!r.dateStr||!r.hours)return;
+      const key=r.id+'_'+r.dateStr;
+      attMap[key]=(attMap[key]||0)+r.hours;
+    });
+  }
+
+  // ── 建立休息紀錄 map：empId+dateStr → [{startTime,startLoc,endTime,endLoc}] ──
   const brkMap={};
   if(BRK&&BRK.length){
     BRK.forEach(b=>{
-      if(!brkMap[b.id])brkMap[b.id]={};
-      if(!brkMap[b.id][b.dateStr])brkMap[b.id][b.dateStr]=[];
-      brkMap[b.id][b.dateStr].push(b);
+      if(!b.id||!b.dateStr)return;
+      const key=b.id+'_'+b.dateStr;
+      if(!brkMap[key])brkMap[key]=[];
+      brkMap[key].push(b);
     });
-    // 每天的休息排序
-    Object.values(brkMap).forEach(days=>Object.values(days).forEach(arr=>arr.sort((a,b)=>(a.startTime||0)-(b.startTime||0))));
+    Object.keys(brkMap).forEach(k=>brkMap[k].sort((a,b)=>(a.startTime||0)-(b.startTime||0)));
   }
 
   // ── 地點對應 ──────────────────────────────────────────────────────────
@@ -1449,54 +1458,58 @@ function renderStoreLoc(results,locR,tw){
   };
   const STORES=['料韓男台北(仁愛)','料韓男台北(明曜)','料韓男3號店','英洙家'];
 
-  // ── 計算每人每天各分店工時 ────────────────────────────────────────────
+  // ── 計算每人每天各分店時數 ────────────────────────────────────────────
   const empStoreH={}; // empId → storeKey → hours
 
   locR.forEach(punch=>{
-    const{id,dateStr,inLoc,outLoc,hours:totalH}=punch;
-    if(!id||!dateStr||!totalH)return;
+    const{id,dateStr,inLoc,outLoc}=punch;
+    if(!id||!dateStr)return;
     if(!empStoreH[id])empStoreH[id]={};
 
-    const breaks=brkMap[id]&&brkMap[id][dateStr]||[];
+    // 用 Apollo 實際工時（優先），沒有則用打卡計算
+    const attKey=id+'_'+dateStr;
+    const actualH=attMap[attKey]||punch.hours||0;
+    if(!actualH)return;
+
+    const breaks=brkMap[id+'_'+dateStr]||[];
 
     if(!breaks.length){
       // 無休息：整班歸屬下班地點
       const store=mapLoc(outLoc||inLoc);
-      empStoreH[id][store]=(empStoreH[id][store]||0)+totalH;
+      if(store!=='其他')empStoreH[id][store]=(empStoreH[id][store]||0)+actualH;
       return;
     }
 
-    // 有休息：依分店分攤邏輯說明切割
-    // 需要上下班時間（分鐘）
-    const inM=pMinFlex(punch.inTime)||0;
-    const outM=pMinFlex(punch.outTime)||0;
-    const adjOutM=outM<=inM?outM+1440:outM; // 跨日修正
+    // 有休息：依打卡時間計算各分店比例，再乘以實際工時
+    const inM=safeTime(punch.inTime)||0;
+    const outM=safeTime(punch.outTime)||0;
+    const adjOutM=outM<=inM?outM+1440:outM;
 
-    // 切割時段（休息時間不計入任何分店）
     const segments=[];
     let prevTime=inM;
     let prevLoc=inLoc||'未知';
 
     for(const b of breaks){
-      const bst=b.startTime;
-      const bet=b.endTime;
+      const bst=b.startTime,bet=b.endTime;
       if(bst==null||bet==null)continue;
       const adjBst=bst<inM?bst+1440:bst;
       const adjBet=bet<inM?bet+1440:bet;
-      // 工作時段：prevTime → 休息開始，歸屬 b.startLoc
-      const segH=(adjBst-prevTime)/60;
-      if(segH>0) segments.push({store:mapLoc(b.startLoc||prevLoc),hours:segH});
-      // 休息時段跳過（adjBst → adjBet 不計入）
+      const segH=Math.max(0,(adjBst-prevTime)/60);
+      if(segH>0)segments.push({store:mapLoc(b.startLoc||prevLoc),dur:segH});
       prevTime=adjBet;
       prevLoc=b.endLoc||prevLoc;
     }
-    // 最後工作時段：最後休息結束 → 下班
-    const lastH=(adjOutM-prevTime)/60;
-    if(lastH>0) segments.push({store:mapLoc(prevLoc),hours:lastH});
+    const lastH=Math.max(0,(adjOutM-prevTime)/60);
+    if(lastH>0)segments.push({store:mapLoc(prevLoc),dur:lastH});
 
-    // 直接加總（不需要比例縮放，因為已經是正確的工作時數）
-    segments.forEach(sg=>{
-      empStoreH[id][sg.store]=(empStoreH[id][sg.store]||0)+sg.hours;
+    // 計算各分店比例，再乘以實際工時
+    const validSegs=segments.filter(s=>s.store!=='其他');
+    const totalDur=validSegs.reduce((s,sg)=>s+sg.dur,0);
+    if(!totalDur)return;
+
+    validSegs.forEach(sg=>{
+      const h=actualH*(sg.dur/totalDur);
+      empStoreH[id][sg.store]=(empStoreH[id][sg.store]||0)+h;
     });
   });
 
@@ -1510,7 +1523,7 @@ function renderStoreLoc(results,locR,tw){
     costMap[e.id]={periodCost,totalH};
   });
 
-  // ── 計算每人 LOC 總時數（用於比例分攤）──────────────────────────────
+  // ── 每人 LOC 總時數 ────────────────────────────────────────────────────
   const empLocTotal={};
   Object.entries(empStoreH).forEach(([eid,stores])=>{
     empLocTotal[eid]=Object.values(stores).reduce((s,h)=>s+h,0);
@@ -1535,18 +1548,16 @@ function renderStoreLoc(results,locR,tw){
     });
   });
 
-  // 無打卡的員工：正職歸總部（不分攤），工讀依 dept
+  // 無打卡工讀依 dept
   const punchedIds=new Set(Object.keys(empStoreH));
   results.forEach(e=>{
-    if(punchedIds.has(e.id)||!e.totalH)return;
-    if(e.type==='時薪工讀'){
-      const store=mapLoc(e.dept)||'其他';
-      if(storeData[store]){
-        storeData[store].totalH+=e.totalH;
-        const c=costMap[e.id];
-        if(c)storeData[store].totalCost+=c.periodCost;
-        storeData[store].ptCount.add(e.id);
-      }
+    if(punchedIds.has(e.id)||!e.totalH||e.type!=='時薪工讀')return;
+    const store=mapLoc(e.dept);
+    if(storeData[store]){
+      storeData[store].totalH+=e.totalH;
+      const c=costMap[e.id];
+      if(c)storeData[store].totalCost+=c.periodCost;
+      storeData[store].ptCount.add(e.id);
     }
   });
 
@@ -1568,7 +1579,7 @@ function renderStoreLoc(results,locR,tw){
 
   tw.innerHTML=`
     <div style="font-size:11px;color:#888;margin-bottom:8px">
-      依上下班打卡＋休息打卡紀錄分攤。無打卡的工讀生依薪資表門市歸入對應分店。
+      依 Apollo 實際工時＋打卡地點分攤。時數切割依休息打卡比例計算。
     </div>
     <table>
     <thead><tr>
