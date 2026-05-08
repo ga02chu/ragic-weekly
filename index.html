@@ -351,7 +351,6 @@ tfoot.wk td{background:#FFF8E1;color:#633806;border-top:1.5px solid #F4C775;}
     </div>
     <div class="top-nav">
       <button id="nav-w" class="aw" onclick="switchView('w')">📊 週報</button>
-      <button id="nav-m" onclick="switchView('m')">📅 月報</button>
     </div>
   </div>
 
@@ -374,10 +373,10 @@ tfoot.wk td{background:#FFF8E1;color:#633806;border-top:1.5px solid #F4C775;}
         <div class="ul" id="lul">③ 上下班打卡紀錄<br><small style="color:#888;font-size:10px">Apollo → 打卡紀錄 → 匯出（選填）</small></div>
         <div class="us" id="lus">重新上傳</div>
       </label>
-      <label class="uz" id="adjz"><input type="file" accept=".xlsx" id="adji">
-        <div class="ui" id="adjui">📋</div>
-        <div class="ul" id="adjul">④ 正職調整時數表<br><small style="color:#888;font-size:10px">下載範本 → 填請假/新進/離職（選填）</small></div>
-        <div class="us" id="adjus">重新上傳</div>
+      <label class="uz" id="brzz"><input type="file" accept=".xlsx" id="brzi">
+        <div class="ui" id="brzui">☕</div>
+        <div class="ul" id="brzul">④ 休息打卡紀錄<br><small style="color:#888;font-size:10px">Apollo → 休息紀錄 → 匯出（選填）</small></div>
+        <div class="us" id="brzus">重新上傳</div>
       </label>
     </div>
     <div style="margin-top:10px">
@@ -419,37 +418,7 @@ tfoot.wk td{background:#FFF8E1;color:#633806;border-top:1.5px solid #F4C775;}
     </div>
   </div>
 
-  <!-- 月報 view -->
-  <div id="vm" class="hidden">
-    <div class="note note-b">📋 <b>月報模式</b>：完整月度計算 · 應執勤時數自動套用調整表 · 可逐人手動修改</div>
-    <div class="card" id="cm">
-      <div class="row">
-        <b style="font-size:13px">月份區間</b>
-        <input type="date" id="ms"><span style="color:#888">至</span><input type="date" id="me">
-        <button class="pb" onclick="setMonth(0)">本月</button>
-        <button class="pb" onclick="setMonth(-1)">上月</button>
-        <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="mexcl" onchange="renderM()"> 排除總部/執行長</label>
-        <b style="font-size:13px;margin-left:8px">標準時數</b>
-        <input type="number" id="mstd" value="168" min="1" max="300" step="1" oninput="renderM()">H
-        <select id="msf" onchange="renderM()"><option value="">全部門市</option></select>
-        <select id="mloc" onchange="renderM()"><option value="">全部場別</option><option value="內場">內場</option><option value="外場">外場</option><option value="兼職">兼職</option><option value="總部">總部</option></select>
-        <button class="pb export" onclick="exportExcel('m')">⬇ 匯出 Excel</button>
-        <span class="pill" id="mp"></span>
-      </div>
-    </div>
-    <div id="mmet"></div>
-    <div class="card" id="mtc" style="display:none">
-      <div class="tabs" id="mt"></div>
-      <div class="tw" id="mtw"></div>
-    </div>
-    <div class="card" id="man" style="display:none">
-      <div class="ct">⚠ 異常清單 <span id="man-n" style="font-weight:400;color:#888;font-size:12px"></span></div>
-      <div id="man-l" style="display:flex;flex-direction:column;gap:5px"></div>
-      <div class="legend">🔴 無出勤 · 🟠 跨日打卡 · 🔵 薪資未建檔</div>
-    </div>
   </div>
-
-</div>
 </section>
       </div>
       <div class="toast" id="toast"></div>
@@ -530,7 +499,7 @@ const R={lb:0.0875,voc:0.00195,rsv:0.00025,pen:0.06,hb:0.0484};
 const FT_DIV=240;
 
 // ── State ─────────────────────────────────────────────────────────────────
-let PAY=null,ATT=null,LOC=null,ADJ=[],SLIP=null;
+let PAY=null,ATT=null,LOC=null,BRK=null,ADJ=[],SLIP=null;
 const OVR={};  // manual overrides from table inputs
 let WRES=null,MRES=null,WADJMAP={},MADJMAP={},WTAB='全部',MTAB='全部';
 
@@ -767,6 +736,28 @@ function parseAtt(wb){
       inTime:r[cin]!=null?String(r[cin]):'',outTime:r[cout]!=null?String(r[cout]):'',
       crossMidnight:isCross(iM,oM)};
   })};
+}
+
+
+// ── Parse 休息打卡紀錄 ─────────────────────────────────────────────────────
+function parseBreak(wb){
+  const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:'',cellDates:true});
+  let hi=rows.findIndex(r=>r.some(c=>String(c).trim()==='工號'));
+  if(hi<0)hi=0;
+  const h=rows[hi].map(c=>String(c).trim());
+  const C=n=>h.findIndex(c=>c.includes(n));
+  const[ci,cn,cd,cst,csl,cet,cel]=[C('工號'),C('姓名'),C('日期'),C('休息開始時間'),C('休息開始地點'),C('休息結束時間'),C('休息結束地點')];
+  return rows.slice(hi+1).filter(r=>String(r[ci]||'').trim().startsWith('N')).map(r=>{
+    const{str:dateStr,date}=parseAttDate(r[cd]);
+    const stM=pMinFlex(r[cst]),etM=pMinFlex(r[cet]);
+    return{
+      id:String(r[ci]).trim(),name:String(r[cn]||'').trim(),
+      dateStr,date,
+      startTime:stM,endTime:etM,
+      startLoc:String(r[csl]||'').trim(),
+      endLoc:String(r[cel]||'').trim()
+    };
+  });
 }
 
 // ── Parse location ────────────────────────────────────────────────────────
@@ -1223,6 +1214,12 @@ async function handleFile(f,type){
       fillStores();
     }
     else if(type==='l'){LOC=parseLoc(wb);markDone('l',f.name);}
+    else if(type==='brk'){
+      BRK=parseBreak(wb);
+      markDone('brz',f.name);
+      document.getElementById('brzui').textContent='✅';
+      document.getElementById('brzul').textContent=`休息記錄：${BRK.length}筆`;
+    }
     else if(type==='adj'){
       const adjResult=parseAdj(wb);
       ADJ=adjResult.records;
@@ -1275,9 +1272,9 @@ async function handleFile(f,type){
   }catch(ex){showErr(type+'解析失敗：'+ex.message);}
   showLoad(false);
 }
-['pi','ai','li','adji'].forEach((id,i)=>{
+['pi','ai','li','brzi'].forEach((id,i)=>{
   document.getElementById(id).addEventListener('change',e=>{
-    if(e.target.files[0])handleFile(e.target.files[0],['p','a','l','adj'][i]);
+    if(e.target.files[0])handleFile(e.target.files[0],['p','a','l','brk'][i]);
   });
 });
 
