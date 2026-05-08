@@ -1203,6 +1203,9 @@ async function handleFile(f,type){
     if(type==='p'){PAY=parsePay(wb);markDone('p',f.name);}
     else if(type==='a'){
       ATT=parseAtt(wb);
+      // 備份 Apollo 原始 extras，避免 adj 覆蓋後找不回來
+      ATT._apolloExtras=Object.assign({},ATT.extras||{});
+      ATT._apolloExtrasDetail=Object.assign({},ATT.extrasDetail||{});
       // Show diagnostic: how many records, date range, format detected
       const dates=ATT.records.filter(r=>r.date).map(r=>r.date).sort((a,b)=>a-b);
       const dMin=dates.length?`${dates[0].getFullYear()}/${dates[0].getMonth()+1}月`:'-';
@@ -1222,8 +1225,21 @@ async function handleFile(f,type){
       window._adjCompOff=adjResult.compOffMap||{};
       window._adjHoliday=adjResult.holidayDates||{};
       window._adjExtras=adjResult.adjExtras||{};
-      // 把 adjExtras 合併進 ATT.extras
+      // 把 adjExtras 合併進 ATT.extras（先清掉上次 adj 加的部分）
       if(ATT){
+        // 清掉上次 adj 加的 extras
+        if(window._prevAdjEids){
+          window._prevAdjEids.forEach(eid=>{
+            if(ATT.extras)delete ATT.extras[eid];
+            if(ATT.extrasDetail)delete ATT.extrasDetail[eid];
+          });
+        }
+        // 也清掉 Apollo 原本的 extras 再重建（避免 adj 和 Apollo 重疊）
+        const apolloExtras=ATT._apolloExtras||{};
+        const apolloExtrasDetail=ATT._apolloExtrasDetail||{};
+        ATT.extras=Object.assign({},apolloExtras);
+        ATT.extrasDetail=Object.assign({},apolloExtrasDetail);
+        window._prevAdjEids=new Set();
         Object.entries(window._adjExtras).forEach(([name,items])=>{
           const emp=PAY&&PAY.find(e=>e.name===name);
           const eid=emp?emp.id:null;
@@ -1235,6 +1251,7 @@ async function handleFile(f,type){
             if(!ATT.extrasDetail[eid])ATT.extrasDetail[eid]=[];
             ATT.extrasDetail[eid].push({code:item.code,desc:item.desc,amt:item.amt});
           });
+          window._prevAdjEids.add(eid);
         });
       }
       // 外籍員工標記到 PAY
