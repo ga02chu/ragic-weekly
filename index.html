@@ -384,7 +384,13 @@ tfoot.wk td{background:#FFF8E1;color:#633806;border-top:1.5px solid #F4C775;}
       <button class="pb tmpl" onclick="downloadTemplate()">⬇ 下載人事調整記錄表範本</button>
     <button class="pb" onclick="
       const p=PAY&&PAY.find(e=>e.name==='黃廷曜');
-      alert(p?'birthday:'+p.birthday+' hireDate:'+p.hireDate+' type:'+p.type:'找不到黃廷曜');
+      if(!p){alert('找不到黃廷曜');return;}
+      const bMonth=p.birthday.getMonth();
+      const payMonth=(bMonth-1+12)%12;
+      const sDate=new Date(document.getElementById('ms').value);
+      const pMonth=sDate.getMonth();
+      const years=(sDate-p.hireDate)/(365.25*24*3600*1000);
+      alert('bMonth:'+bMonth+' payMonth:'+payMonth+' periodMonth:'+pMonth+' match:'+(payMonth===pMonth)+' years:'+years.toFixed(2));
     " style="background:#854F0B;color:#fff">🔍 Debug 黃廷曜</button>
     </div>
     <div id="loading" class="loading" style="display:none">解析中…</div>
