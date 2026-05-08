@@ -1417,122 +1417,174 @@ const STORE_CATS=['品牌概念店','料韓男2號店','料韓男3號店','英�
 // ── Store location summary table ───────────────────────────────────────────
 function renderStoreLoc(results,locR,tw){
   if(!locR||!locR.length){
-    tw.innerHTML='<div style="padding:20px;text-align:center;color:#888;font-size:13px">請上傳打卡地點檔案以顯示分店彙整</div>';
+    tw.innerHTML='<div style="padding:20px;text-align:center;color:#888;font-size:13px">請上傳上下班打卡檔案以顯示分店彙整</div>';
     return;
   }
 
-  // 1. Build employee period cost map (cost per hour of period)
-  // FT: period cost = propSal + weekOtPay + propIns (not full month gross!)
-  // PT: period cost = propSal + propIns (propSal already includes OT)
-  const empMap={};
+  // ── 建立每人每天的休息紀錄 map ────────────────────────────────────────
+  // brkMap[empId][dateStr] = [{startTime, startLoc, endTime, endLoc}, ...]
+  const brkMap={};
+  if(BRK&&BRK.length){
+    BRK.forEach(b=>{
+      if(!brkMap[b.id])brkMap[b.id]={};
+      if(!brkMap[b.id][b.dateStr])brkMap[b.id][b.dateStr]=[];
+      brkMap[b.id][b.dateStr].push(b);
+    });
+    // 每天的休息排序
+    Object.values(brkMap).forEach(days=>Object.values(days).forEach(arr=>arr.sort((a,b)=>(a.startTime||0)-(b.startTime||0))));
+  }
+
+  // ── 地點對應 ──────────────────────────────────────────────────────────
+  const mapLoc=l=>{
+    if(!l)return'其他';
+    if(l.includes('仁愛')||l.includes('品牌概念'))return'料韓男台北(仁愛)';
+    if(l.includes('2號')||l.includes('明曜')||l.includes('1&2')||l.includes('1號'))return'料韓男台北(明曜)';
+    if(l.includes('3號')||l.includes('台中')||l.includes('北屯'))return'料韓男3號店';
+    if(l.includes('英洙'))return'英洙家';
+    return'其他';
+  };
+  const STORES=['料韓男台北(仁愛)','料韓男台北(明曜)','料韓男3號店','英洙家'];
+
+  // ── 計算每人每天各分店工時 ────────────────────────────────────────────
+  const empStoreH={}; // empId → storeKey → hours
+
+  locR.forEach(punch=>{
+    const{id,dateStr,inLoc,outLoc,hours:totalH}=punch;
+    if(!id||!dateStr||!totalH)return;
+    if(!empStoreH[id])empStoreH[id]={};
+
+    const breaks=brkMap[id]&&brkMap[id][dateStr]||[];
+
+    if(!breaks.length){
+      // 無休息：整班歸屬下班地點
+      const store=mapLoc(outLoc||inLoc);
+      empStoreH[id][store]=(empStoreH[id][store]||0)+totalH;
+      return;
+    }
+
+    // 有休息：依分店分攤邏輯說明切割
+    // 需要上下班時間（分鐘）
+    const inM=pMinFlex(punch.inTime)||0;
+    const outM=pMinFlex(punch.outTime)||0;
+    const adjOutM=outM<=inM?outM+1440:outM; // 跨日修正
+
+    // 建立時段切割點
+    // 格式：{time, loc}
+    const segments=[];
+    let prevTime=inM;
+    let prevLoc=inLoc||'未知';
+
+    for(const b of breaks){
+      const bst=b.startTime;
+      const bet=b.endTime;
+      if(bst==null||bet==null)continue;
+      const adjBst=bst<inM?bst+1440:bst;
+      const adjBet=bet<inM?bet+1440:bet;
+      // 上段：prevTime → 休息開始，歸屬 b.startLoc（或 prevLoc）
+      const segH=(adjBst-prevTime)/60;
+      if(segH>0){
+        segments.push({store:mapLoc(b.startLoc||prevLoc),hours:segH});
+      }
+      prevTime=adjBet;
+      prevLoc=b.endLoc||prevLoc;
+    }
+    // 最後一段：最後休息結束 → 下班，歸屬最後休息結束地點
+    const lastH=(adjOutM-prevTime)/60;
+    if(lastH>0){
+      segments.push({store:mapLoc(prevLoc),hours:lastH});
+    }
+
+    // 合計各分店時數（比例分配）
+    const totalSeg=segments.reduce((s,sg)=>s+sg.hours,0)||totalH;
+    const scale=totalH/totalSeg;
+    segments.forEach(sg=>{
+      const h=sg.hours*scale;
+      empStoreH[id][sg.store]=(empStoreH[id][sg.store]||0)+h;
+    });
+  });
+
+  // ── 計算人事成本 map ──────────────────────────────────────────────────
+  const costMap={};
   results.forEach(e=>{
-    const totalH=e.totalH||0;
-    if(totalH<=0)return;
+    const totalH=e.totalH||0;if(!totalH)return;
     const periodCost=e.type==='月薪正職'
       ?(e.propSal||0)+(e.weekOtPay||0)+(e.propIns||0)
       :(e.propSal||0)+(e.propIns||0);
-    empMap[e.id]={costPerH:periodCost/totalH,periodCost,totalH};
+    costMap[e.id]={periodCost,totalH};
   });
 
-  // 2. Tally hours per employee per store-category + track 內/外場
-  const catH={}; // storecat → empId → hours
-  const catLocH={}; // storecat → {inner:H, outer:H} for 內外場 breakdown
-  STORE_CATS.forEach(c=>{catH[c]={};catLocH[c]={inner:0,outer:0};});
-  const punchedIds=new Set(); // employees who have locR records
-  locR.forEach(p=>{
-    const h=p.hours||0;if(h<=0)return;
-    punchedIds.add(p.id);
-    const emp=results.find(e=>e.id===p.id);
-    const isInner=emp&&emp.loc==='內場';
-    const addH=(cat,eid,hrs)=>{
-      catH[cat][eid]=(catH[cat][eid]||0)+hrs;
-      if(isInner)catLocH[cat].inner+=hrs;else catLocH[cat].outer+=hrs;
-    };
-    if(p.cross){
-      const c1=mapLocToStore(p.inLoc),c2=mapLocToStore(p.outLoc);
-      addH(c1,p.id,h/2);addH(c2,p.id,h/2);
-    }else{
-      addH(mapLocToStore(p.inLoc),p.id,h);
-    }
+  // ── 計算每人 LOC 總時數（用於比例分攤）──────────────────────────────
+  const empLocTotal={};
+  Object.entries(empStoreH).forEach(([eid,stores])=>{
+    empLocTotal[eid]=Object.values(stores).reduce((s,h)=>s+h,0);
   });
-  // Employees WITHOUT locR data:
-  // 正職 → 歸入「總部」；工讀 → 依薪資表 store 歸屬
-  results.forEach(e=>{
-    if(punchedIds.has(e.id)||e.totalH<=0)return;
-    const isInner=e.loc==='內場';
-    let homeCat;
-    if(e.type==='月薪正職'){
-      homeCat='其他'; // 正職無打卡歸總部/其他
-    } else {
-      homeCat=mapLocToStore(e.dept)||'其他'; // 工讀依 store
-    }
-    catH[homeCat][e.id]=(catH[homeCat][e.id]||0)+(e.totalH||1);
-    const h=e.totalH||1;
-    if(isInner)catLocH[homeCat].inner+=h;else catLocH[homeCat].outer+=h;
-  });
-  // Build per-employee total LOC hours (for proportion-based cost allocation)
-  const empLocTotal={}; // empId → total LOC hours across all stores
-  STORE_CATS.forEach(cat=>Object.entries(catH[cat]).forEach(([eid,h])=>{empLocTotal[eid]=(empLocTotal[eid]||0)+h;}));
 
-  // 3. Compute cost per store-category (proportion-based to avoid LOC vs ATT hour mismatch)
-  const rows=STORE_CATS.map(cat=>{
-    const empHours=catH[cat];
-    let totalH=0,totalCost=0,ft=new Set(),pt=new Set();
-    Object.entries(empHours).forEach(([eid,h])=>{
-      totalH+=h;
-      const emp=results.find(e=>e.id===eid);
+  // ── 彙整各分店 ────────────────────────────────────────────────────────
+  const storeData={};
+  STORES.forEach(s=>{storeData[s]={store:s,totalH:0,totalCost:0,ftCount:new Set(),ptCount:new Set()};});
+
+  Object.entries(empStoreH).forEach(([eid,stores])=>{
+    const emp=results.find(e=>e.id===eid);
+    const c=costMap[eid];
+    const empTot=empLocTotal[eid]||0;
+    Object.entries(stores).forEach(([store,h])=>{
+      if(!storeData[store])return;
+      storeData[store].totalH+=h;
+      if(c&&empTot>0)storeData[store].totalCost+=c.periodCost*(h/empTot);
       if(emp){
-        if(emp.type==='月薪正職')ft.add(eid);else pt.add(eid);
-        const c=empMap[eid];
-        const empTotH=empLocTotal[eid]||0;
-        // Use proportion: this store's LOC hours / employee's total LOC hours × period cost
-        if(c&&empTotH>0)totalCost+=c.periodCost*(h/empTotH);
+        if(emp.type==='月薪正職')storeData[store].ftCount.add(eid);
+        else storeData[store].ptCount.add(eid);
       }
     });
-    if(totalH<=0)return null;
-    const lh=catLocH[cat];
-    return{cat,totalH,totalCost:Math.round(totalCost),ft:ft.size,pt:pt.size,
-           innerH:lh.inner,outerH:lh.outer};
-  }).filter(Boolean);
+  });
 
-  const grandH=rows.reduce((s,r)=>s+r.totalH,0);
-  const grandC=rows.reduce((s,r)=>s+r.totalCost,0);
+  // 無打卡的員工：正職歸總部（不分攤），工讀依 dept
+  const punchedIds=new Set(Object.keys(empStoreH));
+  results.forEach(e=>{
+    if(punchedIds.has(e.id)||!e.totalH)return;
+    if(e.type==='時薪工讀'){
+      const store=mapLoc(e.dept)||'其他';
+      if(storeData[store]){
+        storeData[store].totalH+=e.totalH;
+        const c=costMap[e.id];
+        if(c)storeData[store].totalCost+=c.periodCost;
+        storeData[store].ptCount.add(e.id);
+      }
+    }
+  });
 
-  const tableRows=rows.map(r=>`<tr>
-    <td class="l" style="font-weight:600">${r.cat}</td>
-    <td>${r.totalH.toFixed(1)}H</td>
-    <td>${(grandH>0?r.totalH/grandH*100:0).toFixed(1)}%</td>
-    <td style="color:#185FA5">${r.innerH>0?r.innerH.toFixed(1)+'H':'–'}</td>
-    <td>${r.innerH>0&&r.totalH>0?(r.innerH/r.totalH*100).toFixed(0)+'%':'–'}</td>
-    <td style="color:#3B6D11">${r.outerH>0?r.outerH.toFixed(1)+'H':'–'}</td>
-    <td>${r.outerH>0&&r.totalH>0?(r.outerH/r.totalH*100).toFixed(0)+'%':'–'}</td>
-    <td>${r.ft}人</td><td>${r.pt}人</td>
-    <td style="font-weight:600;color:#185FA5">${fT(r.totalCost)}</td>
-    <td>${(grandC>0?r.totalCost/grandC*100:0).toFixed(1)}%</td>
-  </tr>`).join('');
+  const grandH=Object.values(storeData).reduce((s,r)=>s+r.totalH,0);
+  const grandC=Object.values(storeData).reduce((s,r)=>s+r.totalCost,0);
+
+  const rows=STORES.filter(s=>storeData[s].totalH>0).map(s=>{
+    const r=storeData[s];
+    return`<tr>
+      <td class="l" style="font-weight:600">${r.store}</td>
+      <td>${r.totalH.toFixed(1)}H</td>
+      <td>${(grandH>0?r.totalH/grandH*100:0).toFixed(1)}%</td>
+      <td>${r.ftCount.size}人</td>
+      <td>${r.ptCount.size}人</td>
+      <td style="font-weight:600;color:#185FA5">${fT(Math.round(r.totalCost))}</td>
+      <td>${(grandC>0?r.totalCost/grandC*100:0).toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
 
   tw.innerHTML=`
     <div style="font-size:11px;color:#888;margin-bottom:8px">
-      依打卡地點自動分類。無打卡地點資料的員工，依薪資表門市歸入對應分店。<b>分攤人事成本</b>合計應等於期間人事成本。
+      依上下班打卡＋休息打卡紀錄分攤。無打卡的工讀生依薪資表門市歸入對應分店。
     </div>
     <table>
     <thead><tr>
-      <th class="l">分店</th><th>打卡時數</th><th>時數佔比</th>
-      <th style="color:#185FA5">內場時數</th><th style="color:#185FA5">內場%</th>
-      <th style="color:#3B6D11">外場時數</th><th style="color:#3B6D11">外場%</th>
+      <th class="l">分店</th><th>工時</th><th>時數佔比</th>
       <th>正職人數</th><th>工讀人數</th>
       <th>分攤人事成本</th><th>成本佔比</th>
     </tr></thead>
-    <tbody>${tableRows}</tbody>
+    <tbody>${rows}</tbody>
     <tfoot><tr>
       <td class="l">合計</td>
       <td>${grandH.toFixed(1)}H</td><td>100%</td>
-      <td style="color:#185FA5">${rows.reduce((s,r)=>s+r.innerH,0).toFixed(1)}H</td>
-      <td style="color:#185FA5">${grandH>0?(rows.reduce((s,r)=>s+r.innerH,0)/grandH*100).toFixed(0)+'%':'–'}</td>
-      <td style="color:#3B6D11">${rows.reduce((s,r)=>s+r.outerH,0).toFixed(1)}H</td>
-      <td style="color:#3B6D11">${grandH>0?(rows.reduce((s,r)=>s+r.outerH,0)/grandH*100).toFixed(0)+'%':'–'}</td>
       <td>–</td><td>–</td>
-      <td style="font-weight:600">${fT(grandC)}</td><td>100%</td>
+      <td style="font-weight:600">${fT(Math.round(grandC))}</td><td>100%</td>
     </tr></tfoot></table>`;
 }
 
