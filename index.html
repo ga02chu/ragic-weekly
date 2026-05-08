@@ -647,7 +647,7 @@ function parseTimeFrac(val){
 function pMinFlex(val){return parseTimeFrac(val);}
 
 // Parse date cell: string, Date obj, or Excel serial
-function parseAttDate(val){
+function safeDateStr(val){
   try{
   if(!val&&val!==0)return{str:'',date:null};
   if(val instanceof Date&&!isNaN(val)){
@@ -718,12 +718,12 @@ function parseAtt(wb){ // uses safeTime and safeDateStr
     const cin=C('上班打卡時間'),cout=C('下班打卡時間'),ca=C('實際工時');
     if(ci<0)continue; // must have 工號 column
     const records=rows.slice(hi+1).filter(r=>String(r[ci]||'').trim().startsWith('N')).map(r=>{
-      const iM=pMinFlex(r[cin]),oM=pMinFlex(r[cout]);
-      const{str:dateStr,date}=parseAttDate(r[cd]);
+      const iM=safeTime(r[cin]),oM=safeTime(r[cout]);
+      const{str:dateStr,date}=safeDateStr(r[cd]);
       const hours=ca>=0&&r[ca]!==''&&r[ca]!==null?+r[ca]||0:rawH(iM,oM);
       return{dept:String(r[cu]||'').trim(),id:String(r[ci]).trim(),name:String(r[cn]||'').trim(),
         dateStr,date,hours,
-        inTime:r[cin]!=null?String(r[cin]):'',outTime:r[cout]!=null?String(r[cout]):'',
+        inTime:iM!=null?String(r[cin]):'',outTime:oM!=null?String(r[cout]):'',
         crossMidnight:isCross(iM,oM)};
     });
     if(records.length>0){
@@ -786,7 +786,7 @@ function parseBreak(wb){
   const cet=C('休息結束時間'),cel=C('休息結束地點');
   if(ci<0||cd<0){console.warn('parseBreak: 找不到必要欄位',h);return[];}
   return rows.slice(hi+1).filter(r=>String(r[ci]||'').trim().startsWith('N')).map(r=>{
-    const{str:dateStr,date}=parseAttDate(r[cd]);
+    const{str:dateStr,date}=safeDateStr(r[cd]);
     const stM=safeTime(r[cst]),etM=safeTime(r[cet]);
     const brkDate=safeDateStr(r[cd]);
     const id=String(r[ci]||'').trim();
