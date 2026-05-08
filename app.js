@@ -745,18 +745,35 @@ function switchSection(key) {
   // Clear date label when switching to yoy or settings
   if (isYoy || isWd || key === 'settings' || isHr) document.getElementById('dateRangeLabel').textContent = '';
   if (isHr && typeof renderW === 'function') {
-    // 同步主頁面日期到人事成本
-    const mainFrom = document.getElementById('dateFrom')?.value;
-    const mainTo   = document.getElementById('dateTo')?.value;
-    if (mainFrom && mainTo) {
-      const ws = document.getElementById('ws'); if (ws) ws.value = mainFrom;
-      const we = document.getElementById('we'); if (we) we.value = mainTo;
-      // 月報：取 mainFrom 的整月
-      const d = new Date(mainFrom);
-      const y = d.getFullYear(), m = d.getMonth();
-      const ms = document.getElementById('ms'); if (ms) ms.value = `${y}-${String(m+1).padStart(2,'0')}-01`;
-      const me = document.getElementById('me'); if (me) me.value = `${y}-${String(m+1).padStart(2,'0')}-${new Date(y,m+1,0).getDate()}`;
-    } setTimeout(() => { if (PAY && ATT) { renderW(); renderM(); } }, 100); }
+    setTimeout(() => {
+      if (!PAY || !ATT) return;
+      // 同步主頁面日期，或自動抓出勤資料月份
+      let mainFrom = document.getElementById('dateFrom')?.value;
+      let mainTo   = document.getElementById('dateTo')?.value;
+      if (!mainFrom || !mainTo) {
+        // 主頁面還沒載入，用出勤資料月份
+        const dates = ATT.records.filter(r=>r.date).map(r=>r.date).sort((a,b)=>a-b);
+        if (dates.length) {
+          const first = dates[0];
+          const y = first.getFullYear(), m = first.getMonth();
+          const lastDay = new Date(y, m+1, 0).getDate();
+          mainFrom = `${y}-${String(m+1).padStart(2,'0')}-01`;
+          mainTo   = `${y}-${String(m+1).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+        }
+      }
+      if (mainFrom && mainTo) {
+        const d = new Date(mainFrom);
+        const y = d.getFullYear(), m = d.getMonth();
+        const lastDay = new Date(y, m+1, 0).getDate();
+        const ws = document.getElementById('ws'); if (ws) ws.value = mainFrom;
+        const we = document.getElementById('we'); if (we) we.value = mainTo;
+        const ms = document.getElementById('ms'); if (ms) ms.value = `${y}-${String(m+1).padStart(2,'0')}-01`;
+        const me = document.getElementById('me'); if (me) me.value = `${y}-${String(m+1).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+      }
+      renderW();
+      renderM();
+    }, 200);
+  }
   else if (state.records.length > 0) document.getElementById('dateRangeLabel').textContent = formatRangeLabel();
 }
 
