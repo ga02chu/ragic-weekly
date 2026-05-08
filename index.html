@@ -1472,8 +1472,7 @@ function renderStoreLoc(results,locR,tw){
     const outM=pMinFlex(punch.outTime)||0;
     const adjOutM=outM<=inM?outM+1440:outM; // 跨日修正
 
-    // 建立時段切割點
-    // 格式：{time, loc}
+    // 切割時段（休息時間不計入任何分店）
     const segments=[];
     let prevTime=inM;
     let prevLoc=inLoc||'未知';
@@ -1484,26 +1483,20 @@ function renderStoreLoc(results,locR,tw){
       if(bst==null||bet==null)continue;
       const adjBst=bst<inM?bst+1440:bst;
       const adjBet=bet<inM?bet+1440:bet;
-      // 上段：prevTime → 休息開始，歸屬 b.startLoc（或 prevLoc）
+      // 工作時段：prevTime → 休息開始，歸屬 b.startLoc
       const segH=(adjBst-prevTime)/60;
-      if(segH>0){
-        segments.push({store:mapLoc(b.startLoc||prevLoc),hours:segH});
-      }
+      if(segH>0) segments.push({store:mapLoc(b.startLoc||prevLoc),hours:segH});
+      // 休息時段跳過（adjBst → adjBet 不計入）
       prevTime=adjBet;
       prevLoc=b.endLoc||prevLoc;
     }
-    // 最後一段：最後休息結束 → 下班，歸屬最後休息結束地點
+    // 最後工作時段：最後休息結束 → 下班
     const lastH=(adjOutM-prevTime)/60;
-    if(lastH>0){
-      segments.push({store:mapLoc(prevLoc),hours:lastH});
-    }
+    if(lastH>0) segments.push({store:mapLoc(prevLoc),hours:lastH});
 
-    // 合計各分店時數（比例分配）
-    const totalSeg=segments.reduce((s,sg)=>s+sg.hours,0)||totalH;
-    const scale=totalH/totalSeg;
+    // 直接加總（不需要比例縮放，因為已經是正確的工作時數）
     segments.forEach(sg=>{
-      const h=sg.hours*scale;
-      empStoreH[id][sg.store]=(empStoreH[id][sg.store]||0)+h;
+      empStoreH[id][sg.store]=(empStoreH[id][sg.store]||0)+sg.hours;
     });
   });
 
