@@ -723,10 +723,7 @@ let settingsUnlocked = false;
 function switchSection(key) {
   if (key === 'settings' && !settingsUnlocked) {
     const pwd = prompt('請輸入管理員密碼：');
-    if (pwd !== SETTINGS_PWD) {
-      if (pwd !== null) showToast('密碼錯誤');
-      return;
-    }
+    if (pwd !== SETTINGS_PWD) { if (pwd !== null) showToast('密碼錯誤'); return; }
     settingsUnlocked = true;
   }
   state.activeSection = key;
@@ -735,38 +732,30 @@ function switchSection(key) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.section === key));
   const titles = { dashboard:'總覽', stores:'分店比較', logs:'主管日誌', yoy:'年度比較', wd:'平假日分析', settings:'設定', hr:'人事成本' };
   document.getElementById('pageTitle').textContent = titles[key] || '';
-  const isYoy = key === 'yoy';
-  const isWd  = key === 'wd';
-  const isHr  = key === 'hr';
+  const isYoy = key === 'yoy', isWd = key === 'wd', isHr = key === 'hr';
   document.getElementById('mainTopbarRight').style.display = (isYoy||isWd||isHr) ? 'none' : 'flex';
   document.getElementById('yoyTopbarRight').style.display  = isYoy ? 'flex' : 'none';
   document.getElementById('wdTopbarRight').style.display   = isWd  ? 'flex' : 'none';
-  if (isYoy || isWd || isHr || key === 'settings') {
-    document.getElementById('dateRangeLabel').textContent = '';
-  } else if (state.records.length > 0) {
-    document.getElementById('dateRangeLabel').textContent = formatRangeLabel();
-  }
+  if (isYoy||isWd||isHr||key==='settings') document.getElementById('dateRangeLabel').textContent = '';
+  else if (state.records.length > 0) document.getElementById('dateRangeLabel').textContent = formatRangeLabel();
   if (isHr) {
     setTimeout(() => {
       if (!window.PAY || !window.ATT) return;
-      // 用主頁面 dateFrom/dateTo，沒有的話用出勤資料月份
+      // 從主頁面 dateFrom 取得日期，沒有則用出勤資料月份
       let f = document.getElementById('dateFrom')?.value;
-      let t = document.getElementById('dateTo')?.value;
       if (!f) {
-        const dates = ATT.records.filter(r=>r.date).map(r=>r.date).sort((a,b)=>a-b);
-        if (!dates.length) return;
-        const first = dates[0];
-        const y = first.getFullYear(), m = first.getMonth();
-        f = y+'-'+String(m+1).padStart(2,'0')+'-01';
-        t = y+'-'+String(m+1).padStart(2,'0')+'-'+String(new Date(y,m+1,0).getDate()).padStart(2,'0');
+        const ds = ATT.records.filter(r=>r.date).map(r=>r.date).sort((a,b)=>a-b);
+        if (!ds.length) return;
+        const d0 = ds[0];
+        f = d0.getFullYear()+'-'+String(d0.getMonth()+1).padStart(2,'0')+'-01';
       }
-      const d = new Date(f);
-      const y = d.getFullYear(), m = d.getMonth();
-      const last = String(new Date(y,m+1,0).getDate()).padStart(2,'0');
-      const mf = y+'-'+String(m+1).padStart(2,'0')+'-01';
-      const mt = y+'-'+String(m+1).padStart(2,'0')+'-'+last;
+      const d = new Date(f), y = d.getFullYear(), m = d.getMonth();
+      const last = new Date(y, m+1, 0).getDate();
+      const pad = n => String(n).padStart(2,'0');
+      const mf = y+'-'+pad(m+1)+'-01';
+      const mt = y+'-'+pad(m+1)+'-'+pad(last);
       document.getElementById('ws').value = f;
-      document.getElementById('we').value = t;
+      document.getElementById('we').value = document.getElementById('dateTo')?.value || mt;
       document.getElementById('ms').value = mf;
       document.getElementById('me').value = mt;
       renderW();

@@ -330,123 +330,125 @@ tfoot.wk td{background:#FFF8E1;color:#633806;border-top:1.5px solid #F4C775;}
           </div>
         </section>
       <section class="section" id="section-hr">
-<div id="sb-bar" style="display:none;background:#f0faf6;border:1px solid #b7e4cc;border-radius:8px;padding:8px 14px;margin-bottom:10px;font-size:12px;align-items:center;gap:10px;flex-wrap:wrap">
-  <span style="color:#1D9E75;font-weight:600">☁️ 雲端儲存已啟用</span>
-  <span id="sb-user" style="color:#555"></span>
-  <span style="margin-left:auto;display:flex;gap:8px">
-    <button class="pb" onclick="sbSaveAll()" style="background:#1D9E75;color:#fff;border-color:#1D9E75">☁️ 儲存到雲端</button>
-    <button class="pb" onclick="sbLoadAll()">☁️ 載入上次資料</button>
-    <button class="pb" onclick="sbLogout()" style="color:#999">登出</button>
-  </span>
-</div>
+<div style="padding:20px;">
 
+  <!-- 雲端狀態列 -->
+  <div id="sb-bar" style="display:none;background:#f0faf6;border:1px solid #b7e4cc;border-radius:8px;padding:8px 14px;margin-bottom:16px;font-size:12px;align-items:center;gap:10px;flex-wrap:wrap">
+    <span style="color:#1D9E75;font-weight:600">☁️ 雲端儲存已啟用</span>
+    <span id="sb-user" style="color:#555"></span>
+    <span style="margin-left:auto;display:flex;gap:8px">
+      <button class="pb" onclick="sbSaveAll()" style="background:#1D9E75;color:#fff;border-color:#1D9E75">☁️ 儲存到雲端</button>
+      <button class="pb" onclick="sbLoadAll()">☁️ 載入上次資料</button>
+      <button class="pb" onclick="sbLogout()" style="color:#999">登出</button>
+    </span>
+  </div>
 
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-  <div>
-    <div style="font-size:18px;font-weight:700;color:#1a2f4e">人事成本週報系統</div>
-    <div style="font-size:11px;color:#888;margin-top:2px">含勞健保 · 英洙家/料韓男分開 · 請假自動調整應執勤時數 · 可匯出 Excel</div>
-  </div>
-  <div class="top-nav">
-    <button id="nav-w" class="aw" onclick="switchView('w')">📊 週報</button>
-    <button id="nav-m" onclick="switchView('m')">📅 月報</button>
-  </div>
-</div>
-
-<!-- Upload -->
-<div class="card">
-  <div class="ct">上傳資料檔案 <span style="font-size:11px;font-weight:400;color:#888">（① 必填　② 必填　③④ 選填）</span></div>
-  <div class="ug">
-    <label class="uz" id="pz"><input type="file" accept=".xlsx" id="pi">
-      <div class="ui" id="pui">💼</div>
-      <div class="ul" id="pul">① 薪資保險資料 ✱<br><small style="color:#888;font-size:10px">Apollo → 薪資計算 → 匯出</small></div>
-      <div class="us" id="pus">重新上傳</div></label>
-    <label class="uz" id="az"><input type="file" accept=".xlsx" id="ai">
-      <div class="ui" id="aui">🕐</div>
-      <div class="ul" id="aul">② Apollo 出勤紀錄 ✱<br><small style="color:#888;font-size:10px">Apollo → 出勤統計 → 匯出</small></div>
-      <div class="us" id="aus">重新上傳</div></label>
-    <label class="uz" id="lz"><input type="file" accept=".xlsx" id="li">
-      <div class="ui" id="lui">📍</div>
-      <div class="ul" id="lul">③ 上下班打卡紀錄<br><small style="color:#888;font-size:10px">Apollo → 打卡紀錄 → 匯出（選填）</small></div>
-      <div class="us" id="lus">重新上傳</div></label>
-    <label class="uz" id="adjz"><input type="file" accept=".xlsx" id="adji">
-      <div class="ui" id="adjui">📋</div>
-      <div class="ul" id="adjul">④ 正職調整時數表<br><small style="color:#888;font-size:10px">下載範本 → 填請假/新進/離職（選填）</small></div>
-      <div class="us" id="adjus">重新上傳</div></label>
-  </div>
-  <div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-    <button class="pb tmpl" onclick="downloadTemplate()">⬇ 下載人事調整記錄表範本</button>
-  </div>
-  
-    </label>
-  </div>
-  <div style="display:none"><span style="font-size:11px;color:#888">填完後上傳即可，系統自動套用應執勤時數（未填員工沿用標準時數）</span>
-  </div>
-  <div id="loading" class="loading" style="display:none">解析中…</div>
-  <div id="err" class="err-box"></div></div>
-</div>
-
-<!-- WEEK view -->
-<div id="vw">
-  <div class="note note-a">⚠ <b>週報模式</b>：正職薪資 = 月薪 × 天數比例 · 預估OT依本週出勤速度估算 · 工讀依實際工時計算</div>
-  <div class="card" id="cw">
-    <div class="row">
-      <b style="font-size:13px">本週區間</b>
-      <input type="date" id="ws"><span style="color:#888">至</span><input type="date" id="we">
-      <button class="pb" onclick="setWeek(0)">本週(一~四)</button>
-      <button class="pb" onclick="setWeek(-1)">上週</button>
-      <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="wexcl" onchange="renderW()"> 排除總部/執行長</label>
-      <b style="font-size:13px;margin-left:8px">標準時數</b>
-      <input type="number" id="wstd" value="168" min="1" max="300" step="1" oninput="renderW()">H
-      <select id="wsf" onchange="renderW()"><option value="">全部門市</option></select>
-      <select id="wloc" onchange="renderW()" style="font-size:13px;padding:6px 10px;border:1px solid #ddd;border-radius:7px"><option value="">全部場別</option><option value="內場">內場</option><option value="外場">外場</option><option value="兼職">兼職</option><option value="總部">總部</option></select>
-      <button class="pb export" onclick="exportExcel('w')">⬇ 匯出 Excel</button>
-      <span class="pill" id="wp"></span>
+  <!-- 標題列 -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div>
+      <div style="font-size:18px;font-weight:700;color:#1a2f4e">人事成本週報系統</div>
+      <div style="font-size:11px;color:#888;margin-top:2px">含勞健保 · 英洙家/料韓男分開 · 請假自動調整應執勤時數 · 可匯出 Excel</div>
+    </div>
+    <div class="top-nav">
+      <button id="nav-w" class="aw" onclick="switchView('w')">📊 週報</button>
+      <button id="nav-m" onclick="switchView('m')">📅 月報</button>
     </div>
   </div>
-  <div id="wmet"></div>
-  <div id="pt-warn" style="display:none;background:#FFF3CD;border:1px solid #ffc107;padding:8px 14px;border-radius:6px;margin:6px 0;font-size:12px">⚠️ <b>工讀生全部無出勤記錄</b>，薪資顯示「無記錄」。請確認日期範圍是否與出勤檔案月份相符。</div>
-  <div class="card" id="wtc" style="display:none">
-    <div class="tabs" id="wt"></div>
-    <div class="tw" id="wtw"></div>
-  </div>
-  <div class="card" id="wan" style="display:none">
-    <div class="ct">⚠ 異常清單 <span id="wan-n" style="font-weight:400;color:#888;font-size:12px"></span></div>
-    <div id="wan-l" style="display:flex;flex-direction:column;gap:5px"></div>
-    <div class="legend">🔴 無出勤 · 🟠 跨日打卡 · 🔵 薪資未建檔</div>
-  </div>
-</div>
 
-<!-- MONTH view -->
-<div id="vm" class="hidden">
-  <div class="note note-b">📋 <b>月報模式</b>：完整月度計算 · 應執勤時數自動套用調整表 · 可逐人手動修改</div>
-  <div class="card" id="cm">
-    <div class="row">
-      <b style="font-size:13px">月份區間</b>
-      <input type="date" id="ms"><span style="color:#888">至</span><input type="date" id="me">
-      <button class="pb" onclick="setMonth(0)">本月</button>
-      <button class="pb" onclick="setMonth(-1)">上月</button>
-      <button class="pb" onclick="setMD('2026-03-01','2026-03-31')">3月</button>
-      <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="mexcl" onchange="renderM()"> 排除總部/執行長</label>
-      <b style="font-size:13px;margin-left:8px">標準時數</b>
-      <input type="number" id="mstd" value="168" min="1" max="300" step="1" oninput="renderM()">H
-      <select id="msf" onchange="renderM()"><option value="">全部門市</option></select>
-      <select id="mloc" onchange="renderM()" style="font-size:13px;padding:6px 10px;border:1px solid #ddd;border-radius:7px"><option value="">全部場別</option><option value="內場">內場</option><option value="外場">外場</option><option value="兼職">兼職</option><option value="總部">總部</option></select>
-      <button class="pb export" onclick="exportExcel('m')">⬇ 匯出 Excel</button>
-      <span class="pill" id="mp"></span>
+  <!-- 上傳區 -->
+  <div class="card">
+    <div class="ct">上傳資料檔案 <span style="font-size:11px;font-weight:400;color:#888">（① ② 必填　③ ④ 選填）</span></div>
+    <div class="ug">
+      <label class="uz" id="pz"><input type="file" accept=".xlsx" id="pi">
+        <div class="ui" id="pui">💼</div>
+        <div class="ul" id="pul">① 薪資保險資料 ✱<br><small style="color:#888;font-size:10px">Apollo → 薪資計算 → 匯出</small></div>
+        <div class="us" id="pus">重新上傳</div>
+      </label>
+      <label class="uz" id="az"><input type="file" accept=".xlsx" id="ai">
+        <div class="ui" id="aui">🕐</div>
+        <div class="ul" id="aul">② Apollo 出勤紀錄 ✱<br><small style="color:#888;font-size:10px">Apollo → 出勤統計 → 匯出</small></div>
+        <div class="us" id="aus">重新上傳</div>
+      </label>
+      <label class="uz" id="lz"><input type="file" accept=".xlsx" id="li">
+        <div class="ui" id="lui">📍</div>
+        <div class="ul" id="lul">③ 上下班打卡紀錄<br><small style="color:#888;font-size:10px">Apollo → 打卡紀錄 → 匯出（選填）</small></div>
+        <div class="us" id="lus">重新上傳</div>
+      </label>
+      <label class="uz" id="adjz"><input type="file" accept=".xlsx" id="adji">
+        <div class="ui" id="adjui">📋</div>
+        <div class="ul" id="adjul">④ 正職調整時數表<br><small style="color:#888;font-size:10px">下載範本 → 填請假/新進/離職（選填）</small></div>
+        <div class="us" id="adjus">重新上傳</div>
+      </label>
+    </div>
+    <div style="margin-top:10px">
+      <button class="pb tmpl" onclick="downloadTemplate()">⬇ 下載人事調整記錄表範本</button>
+    </div>
+    <div id="loading" class="loading" style="display:none">解析中…</div>
+    <div id="err" class="err-box" style="display:none"></div>
+  </div>
+
+  <!-- 週報 view -->
+  <div id="vw">
+    <div class="note note-a">⚠ <b>週報模式</b>：正職薪資 = 月薪 × 天數比例 · 預估OT依本週出勤速度估算 · 工讀依實際工時計算</div>
+    <div class="card" id="cw">
+      <div class="row">
+        <b style="font-size:13px">本週區間</b>
+        <input type="date" id="ws"><span style="color:#888">至</span><input type="date" id="we">
+        <button class="pb" onclick="setWeek(0)">本週(一~四)</button>
+        <button class="pb" onclick="setWeek(-1)">上週</button>
+        <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="wexcl" onchange="renderW()"> 排除總部/執行長</label>
+        <b style="font-size:13px;margin-left:8px">標準時數</b>
+        <input type="number" id="wstd" value="168" min="1" max="300" step="1" oninput="renderW()">H
+        <select id="wsf" onchange="renderW()"><option value="">全部門市</option></select>
+        <select id="wloc" onchange="renderW()"><option value="">全部場別</option><option value="內場">內場</option><option value="外場">外場</option><option value="兼職">兼職</option><option value="總部">總部</option></select>
+        <button class="pb export" onclick="exportExcel('w')">⬇ 匯出 Excel</button>
+        <span class="pill" id="wp"></span>
+      </div>
+    </div>
+    <div id="wmet"></div>
+    <div id="pt-warn" style="display:none;background:#FFF3CD;border:1px solid #ffc107;padding:8px 14px;border-radius:6px;margin:6px 0;font-size:12px">⚠️ <b>工讀生全部無出勤記錄</b>，請確認日期範圍是否與出勤檔案月份相符。</div>
+    <div class="card" id="wtc" style="display:none">
+      <div class="tabs" id="wt"></div>
+      <div class="tw" id="wtw"></div>
+    </div>
+    <div class="card" id="wan" style="display:none">
+      <div class="ct">⚠ 異常清單 <span id="wan-n" style="font-weight:400;color:#888;font-size:12px"></span></div>
+      <div id="wan-l" style="display:flex;flex-direction:column;gap:5px"></div>
+      <div class="legend">🔴 無出勤 · 🟠 跨日打卡 · 🔵 薪資未建檔</div>
     </div>
   </div>
-  <div id="mmet"></div>
-  <div class="card" id="mtc" style="display:none">
-    <div class="tabs" id="mt"></div>
-    <div class="tw" id="mtw"></div>
-  </div>
-  <div class="card" id="man" style="display:none">
-    <div class="ct">⚠ 異常清單 <span id="man-n" style="font-weight:400;color:#888;font-size:12px"></span></div>
-    <div id="man-l" style="display:flex;flex-direction:column;gap:5px"></div>
-    <div class="legend">🔴 無出勤 · 🟠 跨日打卡 · 🔵 薪資未建檔</div>
-  </div>
-</div>
 
+  <!-- 月報 view -->
+  <div id="vm" class="hidden">
+    <div class="note note-b">📋 <b>月報模式</b>：完整月度計算 · 應執勤時數自動套用調整表 · 可逐人手動修改</div>
+    <div class="card" id="cm">
+      <div class="row">
+        <b style="font-size:13px">月份區間</b>
+        <input type="date" id="ms"><span style="color:#888">至</span><input type="date" id="me">
+        <button class="pb" onclick="setMonth(0)">本月</button>
+        <button class="pb" onclick="setMonth(-1)">上月</button>
+        <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="mexcl" onchange="renderM()"> 排除總部/執行長</label>
+        <b style="font-size:13px;margin-left:8px">標準時數</b>
+        <input type="number" id="mstd" value="168" min="1" max="300" step="1" oninput="renderM()">H
+        <select id="msf" onchange="renderM()"><option value="">全部門市</option></select>
+        <select id="mloc" onchange="renderM()"><option value="">全部場別</option><option value="內場">內場</option><option value="外場">外場</option><option value="兼職">兼職</option><option value="總部">總部</option></select>
+        <button class="pb export" onclick="exportExcel('m')">⬇ 匯出 Excel</button>
+        <span class="pill" id="mp"></span>
+      </div>
+    </div>
+    <div id="mmet"></div>
+    <div class="card" id="mtc" style="display:none">
+      <div class="tabs" id="mt"></div>
+      <div class="tw" id="mtw"></div>
+    </div>
+    <div class="card" id="man" style="display:none">
+      <div class="ct">⚠ 異常清單 <span id="man-n" style="font-weight:400;color:#888;font-size:12px"></span></div>
+      <div id="man-l" style="display:flex;flex-direction:column;gap:5px"></div>
+      <div class="legend">🔴 無出勤 · 🟠 跨日打卡 · 🔵 薪資未建檔</div>
+    </div>
+  </div>
+
+</div>
 </section>
       </div>
       <div class="toast" id="toast"></div>
