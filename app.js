@@ -733,16 +733,18 @@ function switchSection(key) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.getElementById('section-' + key).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.section === key));
-  const titles = { dashboard:'總覽', stores:'分店比較', logs:'主管日誌', yoy:'年度比較', wd:'平假日分析', settings:'設定' };
+  const titles = { dashboard:'總覽', stores:'分店比較', logs:'主管日誌', yoy:'年度比較', wd:'平假日分析', settings:'設定', hr:'人事成本' };
   document.getElementById('pageTitle').textContent = titles[key] || '';
   // Show/hide topbars
   const isYoy = key === 'yoy';
   const isWd  = key === 'wd';
-  document.getElementById('mainTopbarRight').style.display = (isYoy||isWd) ? 'none' : 'flex';
+  const isHr  = key === 'hr';
+  document.getElementById('mainTopbarRight').style.display = (isYoy||isWd||isHr) ? 'none' : 'flex';
   document.getElementById('yoyTopbarRight').style.display  = isYoy ? 'flex' : 'none';
   document.getElementById('wdTopbarRight').style.display   = isWd  ? 'flex' : 'none';
   // Clear date label when switching to yoy or settings
-  if (isYoy || isWd || key === 'settings') document.getElementById('dateRangeLabel').textContent = '';
+  if (isYoy || isWd || key === 'settings' || isHr) document.getElementById('dateRangeLabel').textContent = '';
+  if (isHr && typeof renderW === 'function') { setTimeout(() => { if (PAY && ATT) { renderW(); renderM(); } }, 100); }
   else if (state.records.length > 0) document.getElementById('dateRangeLabel').textContent = formatRangeLabel();
 }
 
